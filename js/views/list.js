@@ -1,6 +1,7 @@
 import { getInvoices, saveInvoice, deleteInvoice, getProfile } from '../store.js';
 import { money, money2, fmtISO, esc, toast } from '../util.js';
 import { Icon } from '../icons.js';
+import { mountAdSlot } from '../ads.js';
 
 let filterStatus = 'All';
 
@@ -16,7 +17,9 @@ export function html(ctx){
   const tax   = docs.reduce((a,i)=> a+(Number(i.taxAmount)||0), 0);
   const taxPct = docs.length ? (docs[0].taxRatePercentage||0) : (p.defaultTaxPercentage||0);
 
-  const cards = docs.length ? docs.map(card).join('')
+  // Cards with an ad interleaved after every 5th document (5,10,15…).
+  // Fewer than 5 → no ad; the number of ads grows with the list.
+  const cards = docs.length ? cardsWithAds(docs)
     : `<div class="empty">${Icon.doc}<div>No ${type}s yet. Tap <b>Create</b> to add one.</div></div>`;
 
   const opts = ['All','Pending','Paid','Overdue','Cancelled']
@@ -43,6 +46,16 @@ export function html(ctx){
   </div>`;
 }
 
+const ADS_EVERY = 5;
+function cardsWithAds(docs){
+  let out = '', ad = 0;
+  docs.forEach((inv, i) => {
+    out += card(inv);
+    if((i + 1) % ADS_EVERY === 0) out += `<div class="ad-slot" id="ad-slot-${ad++}"></div>`;
+  });
+  return out;
+}
+
 function card(inv){
   const p = getProfile();
   const advance = Number(inv.advancePayment)||0;
@@ -63,6 +76,8 @@ function card(inv){
 }
 
 export function mount(ctx){
+  document.querySelectorAll('.ad-slot').forEach((el, i) => mountAdSlot(el, i));
+
   const f = document.getElementById('filter');
   if(f) f.addEventListener('change', e => { filterStatus = e.target.value; ctx.navigate(ctx.path); });
 

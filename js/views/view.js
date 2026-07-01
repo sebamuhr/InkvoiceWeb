@@ -1,43 +1,26 @@
-import { getInvoice, saveInvoice, deleteInvoice } from '../store.js';
+import { getInvoice } from '../store.js';
 import { pdfBlob, pdfFilename } from '../pdf.js';
-import { money, esc, toast, STATUSES } from '../util.js';
+import { toast } from '../util.js';
 import { Icon } from '../icons.js';
 
 function currentId(ctx){ return ctx.path.split('/')[2]; }
+let blobUrl = null;
 
 export function html(ctx){
   const inv = getInvoice(currentId(ctx));
   if(!inv) return `<div class="screen"><div class="empty">${Icon.doc}<div>Document not found.</div>
-    <button class="btn ghost" style="margin-top:12px" onclick="nav('/invoices')">Back to list</button></div></div>`;
+    <button class="btn" style="margin-top:14px" onclick="nav('/invoices')">Back to list</button></div></div>`;
 
   const isQuote = inv.type==='quotation';
-  return `<div class="screen">
-    <div class="topbar">
-      <button class="back" onclick="nav('/${isQuote?'quotations':'invoices'}')">${Icon.back} ${isQuote?'Quotes':'Invoices'}</button>
-      <span class="badge ${inv.status}">${inv.status}</span>
+  // Clean full-screen PDF viewer — matches the Android PdfViewerActivity:
+  // empty title, single Share button, chrome-less PDF with zoom/pan.
+  return `<div class="pdf-screen">
+    <div class="pdf-topbar">
+      <button class="iconbtn" onclick="nav('/${isQuote?'quotations':'invoices'}')" aria-label="Back">${Icon.back}</button>
+      <button class="btn btn-share" id="share">${Icon.share} Share PDF</button>
     </div>
-    <h1 style="margin:0 0 4px;font-size:22px">${esc(inv.invoiceNumber)}</h1>
-    <div class="sub" style="color:var(--muted);margin-bottom:14px">${esc(inv.clientName)} · ${money(inv.grandTotal, inv.currency)}</div>
-
-    <div class="view-actions">
-      <button class="btn" id="share">${Icon.share} Send PDF</button>
-      <button class="btn ghost" id="save">${Icon.download} Save</button>
-    </div>
-
-    <iframe id="pdf" class="pdf-frame" title="PDF preview"></iframe>
-
-    <div class="mcard" style="margin-top:14px">
-      <div class="mfield on-card" style="margin-top:6px">
-        <select id="status" class="ctrl">${STATUSES.map(s=>`<option ${inv.status===s?'selected':''}>${s}</option>`).join('')}</select>
-        <label for="status">Status</label>
-        <span class="icon-r">${Icon.chev}</span>
-      </div>
-      <div class="two" style="margin-top:12px">
-        <button class="btn ghost" onclick="nav('/create?edit=${inv.id}')">${Icon.edit} Edit</button>
-        <button class="btn ghost" id="dup">${Icon.copy} Duplicate</button>
-      </div>
-      ${isQuote ? `<button class="btn ghost block" id="convert" style="margin-top:10px">${Icon.arrowRight} Convert to invoice</button>`:''}
-      <button class="btn danger block" id="del" style="margin-top:10px">${Icon.trash} Delete</button>
+    <div class="pdf-stage">
+      <iframe id="pdf" class="pdf-doc" title="Invoice PDF"></iframe>
     </div>
   </div>`;
 }
@@ -46,12 +29,11 @@ export function mount(ctx){
   const inv = getInvoice(currentId(ctx));
   if(!inv) return;
 
-  // Render the PDF into the iframe (preview == the exported file).
-  // Blob URLs render PDFs more reliably than data URIs on iOS Safari.
   try{
-    const url = URL.createObjectURL(pdfBlob(inv));
-    document.getElementById('pdf').src = url;
-    setTimeout(()=>URL.revokeObjectURL(url), 60000);
+    if(blobUrl) URL.revokeObjectURL(blobUrl);
+    blobUrl = URL.createObjectURL(pdfBlob(inv));
+    // #toolbar=0&navpanes=0&scrollbar=0 hides the browser PDF chrome → clean page with pinch-zoom + pan
+    document.getElementById('pdf').src = blobUrl + '#toolbar=0&navpanes=0&scrollbar=0&view=FitH';
   }catch(e){ toast('PDF engine still loading — try again'); }
 
   document.getElementById('share').addEventListener('click', async () => {
@@ -61,40 +43,12 @@ export function mount(ctx){
       if(navigator.canShare && navigator.canShare({ files:[file] })){
         await navigator.share({ files:[file], title:inv.invoiceNumber });
       }else{
-        downloadBlob(blob, pdfFilename(inv));
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href=url; a.download=pdfFilename(inv);
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(()=>URL.revokeObjectURL(url), 4000);
         toast('Saved — use Files/Share to send');
       }
-    }catch(e){ /* user cancelled share */ }
+    }catch(e){ /* user cancelled */ }
   });
-
-  document.getElementById('save').addEventListener('click', () => {
-    downloadBlob(pdfBlob(inv), pdfFilename(inv));
-    toast('PDF saved');
-  });
-
-  document.getElementById('status').addEventListener('change', e => {
-    inv.status = e.target.value; saveInvoice(inv);
-    document.querySelector('.badge').className = 'badge '+inv.status;
-    document.querySelector('.badge').textContent = inv.status;
-    toast('Status updated');
-  });
-
-  document.getElementById('dup').addEventListener('click', () => ctx.navigate('/create?duplicate='+inv.id));
-
-  const conv = document.getElementById('convert');
-  if(conv) conv.addEventListener('click', () => ctx.navigate('/create?duplicate='+inv.id+'&as=invoice'));
-
-  document.getElementById('del').addEventListener('click', () => {
-    if(confirm('Delete this document? This cannot be undone.')){
-      deleteInvoice(inv.id); toast('Deleted');
-      ctx.navigate('/'+(inv.type==='quotation'?'quotations':'invoices'));
-    }
-  });
-}
-
-function downloadBlob(blob, name){
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(()=>URL.revokeObjectURL(url), 4000);
 }

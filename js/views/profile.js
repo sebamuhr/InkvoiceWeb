@@ -20,8 +20,8 @@ export function html(){
       </div>
     </div>
 
-    ${mfield({id:'businessName',label:'Business Name',required:true,value:p.businessName})}
-    ${mfield({id:'ownerName',label:'Owner Name',required:true,value:p.ownerName})}
+    ${mfield({id:'businessName',label:'Business Name',required:true,value:p.businessName,attrs:'autocapitalize="words"'})}
+    ${mfield({id:'ownerName',label:'Owner Name',required:true,value:p.ownerName,attrs:'autocapitalize="words"'})}
     ${mfield({id:'email',label:'Email',required:true,type:'email',value:p.email})}
     ${mfield({id:'website',label:'Website',value:p.website})}
     ${mfield({id:'phone',label:'Phone Number <span class="hint-b2g">(B2G only *)</span>',value:p.phone})}

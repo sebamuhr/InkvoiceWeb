@@ -54,7 +54,7 @@ export function html(ctx){
       <label class="b2g-check"><input type="checkbox" id="b2g" ${draft.b2g?'checked':''}> B2G <span class="help">${Icon.help}</span></label>
     </div>
 
-    ${mfield({id:'c-name',label:'Client Name',required:true,value:draft.clientName,list:'clients',attrs:'autocomplete="off"'})}
+    ${mfield({id:'c-name',label:'Client Name',required:true,value:draft.clientName,list:'clients',attrs:'autocomplete="off" autocapitalize="words"'})}
     <datalist id="clients">${clients.map(c=>`<option value="${esc(c.name)}">`).join('')}</datalist>
     ${mfield({id:'c-email',label:'Email',type:'email',value:draft.clientEmail})}
     ${mfield({id:'c-vat',label:'Tax Number'+(draft.b2g?' *':''),value:draft.clientVatId})}
