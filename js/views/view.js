@@ -28,8 +28,8 @@ export function html(ctx){
 
     <div class="mcard" style="margin-top:14px">
       <div class="mfield on-card" style="margin-top:6px">
-        <label for="status">Status</label>
         <select id="status" class="ctrl">${STATUSES.map(s=>`<option ${inv.status===s?'selected':''}>${s}</option>`).join('')}</select>
+        <label for="status">Status</label>
         <span class="icon-r">${Icon.chev}</span>
       </div>
       <div class="two" style="margin-top:12px">

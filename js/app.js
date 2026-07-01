@@ -26,23 +26,20 @@ const ROUTES = [
   { test:p => p==='/create',            view:Create,  key:'create' },
   { test:p => p==='/invoices',          view:List,    key:'invoices', arg:'invoice' },
   { test:p => p==='/quotations',        view:List,    key:'invoices', arg:'quotation' },
-  { test:p => p==='/cards',             view:Cards,   key:'' },
+  { test:p => p==='/cards',             view:Cards,   key:'cards' },
   { test:p => p==='/profile',           view:Profile, key:'profile' },
   { test:p => p.startsWith('/view/'),   view:View,    key:'' },
 ];
 
 function tabbar(active){
+  const tab = (key, path, icon, label) =>
+    `<button class="${active===key?'active':''}" onclick="nav('${path}')">${icon}<span>${label}</span></button>`;
   return `
     <nav class="tabbar">
-      <button class="${active==='profile'?'active':''}" onclick="nav('/profile')">
-        <span class="pill">${Icon.user}</span><span>Profile</span>
-      </button>
-      <button class="create" onclick="nav('/create')" aria-label="Create">
-        <span class="circle">${Icon.plus}</span><span>Create</span>
-      </button>
-      <button class="${active==='invoices'?'active':''}" onclick="nav('/invoices')">
-        <span class="pill">${Icon.list}</span><span>Invoices</span>
-      </button>
+      ${tab('profile','/profile',Icon.user,'Profile')}
+      ${tab('create','/create',Icon.plusCircle,'Create')}
+      ${tab('invoices','/invoices',Icon.list,'Invoices')}
+      ${tab('cards','/cards',Icon.bizcard,'Biz Card')}
     </nav>`;
 }
 

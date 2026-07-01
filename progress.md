@@ -22,6 +22,24 @@ Data in localStorage. 4 PDF styles (Professional/Elegant/Minimalist/Classic) via
 
 ## Log
 
+### 2026-07-01 (c) — Emulator ground-truth + parity pass 2
+- Booted the REAL Inkvoice app in an Android emulator (built `personalDebug` APK read-only,
+  copied to `scratchpad/inkvoice.apk`; fresh AVD `inkvoice_test`; APK + emulator via adb).
+- Captured real screens (scratchpad `r-*.png`) and corrected big differences:
+  - Bottom nav is **4 tabs: Profile · Create · Invoices · Biz Card** (not 5, no big FAB).
+  - Home = bold **"Inkvoice."** wordmark (monospace), not a LOGO circle.
+  - Create: summary card `N° + Subtotal/Total` (no PDF circle); "Client Information" + B2G
+    checkbox row; fields Client Name*/Email/Tax Number/Address/Creation*/Due*/Advance/Discount;
+    bottom **Add Item + PDF** buttons. **PDF options appear only after tapping PDF** — a dialog
+    listing the 4 styles with the real preview thumbnails (copied to `pdfsamples/`), then
+    "Generate & View PDF". Removed inline style picker + status/tax/notes from create.
+  - Profile: empty logo circle + pencil; Material floating-label fields; "(B2G only *)" red
+    hint; added App/Invoice Language, Advanced Sharing, Notes, Backup Now, Privacy/Contact.
+  - Biz Card screen: horizontal card (logo left, info right), matches Android canvas.
+  - Colors → dark-navy primary buttons; lighter lavender bg.
+- Playwright web screenshots confirm strong match on Home/Create/Profile/Biz Card/nav.
+- Emulator: use `scratchpad/start_emu.sh` to boot; app pkg `com.elorate.invoicefree.personal`.
+
 ### 2026-07-01 (b) — UI parity re-skin to Material 3
 - Studied real Android screens (`play-store-assets/phone_screenshots/`): home = big LOGO
   circle; **3-item bottom nav = Profile · Create⊕ · Invoices**; lavender bg; grey rounded

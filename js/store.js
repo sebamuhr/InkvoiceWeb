@@ -10,6 +10,7 @@ export const TAX_COLORS = ['#2196F3','#4CAF50','#FF9800','#9C27B0'];
 export const PDF_STYLES = ['Professional','Elegant','Minimalist','Classic'];
 
 export const CURRENCIES = ['USD','EUR','GBP','CHF','CAD','AUD','JPY'];
+export const LANGUAGES = ['English','German','Spanish','French'];
 
 export const DEFAULT_PROFILE = {
   businessName:'', ownerName:'', address:'', email:'', website:'', phone:'',
@@ -17,6 +18,7 @@ export const DEFAULT_PROFILE = {
   bankingInformation:'',
   defaultTaxPercentage:0,
   footerNotes:'',
+  notes:'',
   currency:'USD',
   logoUri:'',
   preferredPdfStyle:'Professional',
@@ -24,7 +26,9 @@ export const DEFAULT_PROFILE = {
   lastInvoiceNumberUsed:0,
   lastQuotationNumberUsed:0,
   isB2GEnabled:false,
-  appLanguage:'en',
+  advancedSharingOptions:false,
+  appLanguage:'English',
+  invoiceLanguage:'English',
 };
 
 const read = (k, fallback) => {

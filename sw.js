@@ -1,6 +1,6 @@
 /* Inkvoice service worker — offline-first, app-shell cache.
    Bump CACHE version whenever shell files change so clients update. */
-const CACHE = 'inkvoice-v2';
+const CACHE = 'inkvoice-v3';
 
 // All paths relative to the SW scope (works on GitHub Pages subpaths).
 const SHELL = [
@@ -24,7 +24,11 @@ const SHELL = [
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/apple-touch-icon.png',
-  './icons/maskable-512.png'
+  './icons/maskable-512.png',
+  './pdfsamples/professional.png',
+  './pdfsamples/elegant.png',
+  './pdfsamples/minimalist.png',
+  './pdfsamples/classic.png'
 ];
 
 self.addEventListener('install', (e) => {
