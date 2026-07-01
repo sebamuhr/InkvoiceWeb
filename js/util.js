@@ -28,6 +28,8 @@ export function fmtDate(ms){
   if(isNaN(d)) return '';
   return d.toLocaleDateString(undefined,{day:'2-digit',month:'short',year:'numeric'});
 }
+// ISO yyyy-mm-dd (matches the Android list/date display)
+export function fmtISO(ms){ if(!ms) return ''; const d=new Date(Number(ms)); return isNaN(d)?'':d.toISOString().split('T')[0]; }
 export const todayMs = () => { const d=new Date(); d.setHours(0,0,0,0); return d.getTime(); };
 export const plusDaysMs = (ms,days) => Number(ms) + days*86400000;
 export const toInputDate = (ms) => { const d=new Date(Number(ms)); return isNaN(d)?'':d.toISOString().split('T')[0]; };

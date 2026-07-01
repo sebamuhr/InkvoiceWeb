@@ -22,6 +22,21 @@ Data in localStorage. 4 PDF styles (Professional/Elegant/Minimalist/Classic) via
 
 ## Log
 
+### 2026-07-01 (b) — UI parity re-skin to Material 3
+- Studied real Android screens (`play-store-assets/phone_screenshots/`): home = big LOGO
+  circle; **3-item bottom nav = Profile · Create⊕ · Invoices**; lavender bg; grey rounded
+  cards; **Material-3 outlined fields** (notched floating labels); Invoice/Quotation radios;
+  Create has a grey summary card (N° + blue PDF circle + totals); List has a total card +
+  status filter + doc cards with a red/green paid toggle + trash.
+- Re-skinned the web to match: rewrote `css/styles.css`, added `js/ui.js` (mfield helper),
+  changed nav to 3 items, home→LOGO screen, rebuilt create/list/profile/dashboard views.
+- Set up Playwright (chromium at `~/.cache/ms-playwright/chromium-1223`) screenshot harness:
+  `scratchpad/shot.mjs` (seeds localStorage, caps home/create/list/profile/cards/view at
+  400x860). Compared vs Android — **strong match** on all screens. Dates in list now ISO
+  (yyyy-mm-dd) to match Android.
+- To re-run screenshots: `cd InkvoiceWeb && SP=<scratchpad> node <scratchpad>/shot.mjs web`
+  (import path to playwright-core is hard-coded in shot.mjs; server must run on :8000).
+
 ### 2026-07-01
 - Set up GitHub repo `sebamuhr/InkvoiceWeb` and pushed the clean rebuild.
 - Added this `progress.md` (to be updated every prompt).

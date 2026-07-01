@@ -26,10 +26,13 @@ export function html(ctx){
 
     <iframe id="pdf" class="pdf-frame" title="PDF preview"></iframe>
 
-    <div class="card" style="margin-top:14px">
-      <div class="field"><label>Status</label>
-        <select id="status">${STATUSES.map(s=>`<option ${inv.status===s?'selected':''}>${s}</option>`).join('')}</select></div>
-      <div class="row">
+    <div class="mcard" style="margin-top:14px">
+      <div class="mfield on-card" style="margin-top:6px">
+        <label for="status">Status</label>
+        <select id="status" class="ctrl">${STATUSES.map(s=>`<option ${inv.status===s?'selected':''}>${s}</option>`).join('')}</select>
+        <span class="icon-r">${Icon.chev}</span>
+      </div>
+      <div class="two" style="margin-top:12px">
         <button class="btn ghost" onclick="nav('/create?edit=${inv.id}')">${Icon.edit} Edit</button>
         <button class="btn ghost" id="dup">${Icon.copy} Duplicate</button>
       </div>

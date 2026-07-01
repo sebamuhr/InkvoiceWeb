@@ -28,4 +28,6 @@ export const Icon = {
   arrowRight: svg('<path d="M5 12h14M13 6l6 6-6 6"/>'),
   x:     svg('<path d="M18 6 6 18M6 6l12 12"/>'),
   refresh: svg('<path d="M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5M21 12a9 9 0 0 1-15 6.7L3 16M3 21v-5h5"/>'),
+  chev:  svg('<path d="M6 9l6 6 6-6"/>'),
+  calendar: svg('<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/>'),
 };

@@ -1,6 +1,7 @@
-import { getProfile, saveProfile, DEFAULT_PROFILE, CURRENCIES, PDF_STYLES, TAX_COLORS } from '../store.js';
+import { getProfile, saveProfile, CURRENCIES, PDF_STYLES, TAX_COLORS } from '../store.js';
 import { esc, toast } from '../util.js';
 import { Icon } from '../icons.js';
+import { mfield } from '../ui.js';
 
 let logoData = '';
 let taxNumbers = [];
@@ -11,135 +12,98 @@ export function html(){
   taxNumbers = Array.isArray(p.taxNumbers) ? JSON.parse(JSON.stringify(p.taxNumbers)) : [];
 
   return `<div class="screen">
-    <div class="topbar"><h1>Business Profile</h1></div>
-
-    <div class="card">
-      <h3>${Icon.image} Branding</h3>
-      <div class="logo-drop" id="logo-drop">
-        <input type="file" id="logo-input" accept="image/png,image/jpeg" class="hidden">
-        <div id="logo-prev">${logoPrev(logoData)}</div>
-        <div class="section-hint">Tap to upload your logo (PNG or JPG)</div>
-        ${logoData ? `<button type="button" class="btn ghost btn-sm" id="logo-remove" style="margin-top:8px">Remove</button>`:''}
+    <input type="file" id="logo-input" accept="image/png,image/jpeg" class="hidden">
+    <div class="profile-logo">
+      <div class="circle" id="logo-circle">
+        <div id="logo-inner">${logoInner(logoData)}</div>
+        <div class="pencil">${Icon.edit}</div>
       </div>
     </div>
 
-    <div class="card">
-      <h3>${Icon.building} Basic information</h3>
-      ${field('Business Name','businessName',p.businessName,true)}
-      ${field('Owner / Contact','ownerName',p.ownerName)}
-      <div class="field"><label>Address</label><textarea name="address">${esc(p.address)}</textarea></div>
-      <div class="row">${field('Email','email',p.email,true,'email')}${field('Phone','phone',p.phone)}</div>
-      ${field('Website','website',p.website)}
-    </div>
+    ${mfield({id:'businessName',label:'Business Name',required:true,value:p.businessName})}
+    ${mfield({id:'ownerName',label:'Owner Name',required:true,value:p.ownerName})}
+    ${mfield({id:'email',label:'Email',required:true,type:'email',value:p.email})}
+    ${mfield({id:'website',label:'Website',value:p.website})}
+    ${mfield({id:'phone',label:'Phone Number',value:p.phone})}
+    ${mfield({id:'address',label:'Address',textarea:true,value:p.address,counter:90})}
 
-    <div class="card">
-      <h3>${Icon.doc} Tax numbers</h3>
-      <div id="tax-list">${taxRows()}</div>
-      <button type="button" class="btn ghost btn-sm" id="tax-add" ${taxNumbers.length>=4?'disabled':''}>+ Add tax number</button>
-    </div>
+    <div class="section-h" style="font-size:18px">Tax numbers</div>
+    <div id="tax-list">${taxRows()}</div>
+    <button class="btn ghost" id="tax-add" ${taxNumbers.length>=4?'disabled':''} style="margin-top:4px">+ Add tax number</button>
 
-    <div class="card">
-      <h3>${Icon.calc} Defaults</h3>
-      <div class="row">
-        <div class="field"><label>Currency</label>
-          <select name="currency">${CURRENCIES.map(c=>`<option ${p.currency===c?'selected':''}>${c}</option>`).join('')}</select></div>
-        <div class="field"><label>Default Tax %</label>
-          <input name="defaultTaxPercentage" type="number" inputmode="decimal" value="${p.defaultTaxPercentage}"></div>
+    <div class="two" style="margin-top:8px">
+      ${mfield({id:'defaultTaxPercentage',label:'Default Tax Rate (%)',type:'number',value:p.defaultTaxPercentage})}
+      <div class="mfield">
+        <label for="currency">Currency</label>
+        <select id="currency" class="ctrl">${CURRENCIES.map(c=>`<option ${p.currency===c?'selected':''}>${c}</option>`).join('')}</select>
+        <span class="icon-r">${Icon.chev}</span>
       </div>
-      <div class="row">
-        <div class="field"><label>Start invoices at #</label>
-          <input name="startFromInvoiceNumber" type="number" inputmode="numeric" value="${p.startFromInvoiceNumber}"></div>
-        <div class="field"><label>Default PDF style</label>
-          <select name="preferredPdfStyle">${PDF_STYLES.map(s=>`<option ${p.preferredPdfStyle===s?'selected':''}>${s}</option>`).join('')}</select></div>
+    </div>
+    <div class="two">
+      ${mfield({id:'startFromInvoiceNumber',label:'Start invoices at #',type:'number',value:p.startFromInvoiceNumber})}
+      <div class="mfield">
+        <label for="preferredPdfStyle">Default PDF Style</label>
+        <select id="preferredPdfStyle" class="ctrl">${PDF_STYLES.map(s=>`<option ${p.preferredPdfStyle===s?'selected':''}>${s}</option>`).join('')}</select>
+        <span class="icon-r">${Icon.chev}</span>
       </div>
     </div>
 
-    <div class="card">
-      <h3>${Icon.doc} Banking & footer</h3>
-      <div class="field"><label>Banking information</label><textarea name="bankingInformation" placeholder="Bank, IBAN, BIC…">${esc(p.bankingInformation)}</textarea></div>
-      <div class="field"><label>Default footer notes</label><textarea name="footerNotes" placeholder="Payment terms, thank-you note…">${esc(p.footerNotes)}</textarea></div>
-      <label style="display:flex;align-items:center;gap:10px;margin-top:6px">
-        <input type="checkbox" name="isB2GEnabled" ${p.isB2GEnabled?'checked':''} style="width:auto"> Enable B2G (public-sector) fields
-      </label>
-    </div>
+    ${mfield({id:'bankingInformation',label:'Banking Information',textarea:true,value:p.bankingInformation})}
+    ${mfield({id:'footerNotes',label:'Default Footer Notes',textarea:true,value:p.footerNotes})}
 
-    <button class="btn block" id="save-profile">${Icon.save} Save profile</button>
-    <button class="btn ghost block" style="margin-top:10px" onclick="nav('/cards')">${Icon.card} Business cards</button>
+    <label style="display:flex;align-items:center;gap:12px;font-size:17px;margin:14px 2px">
+      <input type="checkbox" id="isB2GEnabled" ${p.isB2GEnabled?'checked':''} style="width:22px;height:22px"> Enable B2G (public-sector) fields
+    </label>
+
+    <button class="btn block" id="save-profile" style="margin-top:8px">${Icon.save} Save Profile</button>
+    <button class="btn ghost block" style="margin-top:10px" onclick="nav('/cards')">${Icon.card} Business Cards</button>
   </div>`;
 }
 
-const field = (label,name,val,req=false,type='text') =>
-  `<div class="field"><label>${label} ${req?'<span class="req">*</span>':''}</label>
-   <input name="${name}" type="${type}" value="${esc(val)}"></div>`;
-
-const logoPrev = (d) => d
-  ? `<img src="${d}" alt="logo">`
-  : `<div class="logo-ph">${Icon.image}</div>`;
+const logoInner = (d) => d ? `<img src="${d}" alt="logo">` : `<span>LOGO</span>`;
 
 function taxRows(){
-  if(!taxNumbers.length) return `<div class="section-hint" style="margin-bottom:10px">No tax numbers yet.</div>`;
+  if(!taxNumbers.length) return `<div class="section-sub">No tax numbers yet.</div>`;
   return taxNumbers.map((t,i)=>`
     <div class="taxrow">
-      <span class="swatch-sm" style="background:${TAX_COLORS[i]||TAX_COLORS[0]}"></span>
-      <input data-tax="${i}" data-k="label" placeholder="Label (e.g. VAT)" value="${esc(t.label)}" style="flex:1">
-      <input data-tax="${i}" data-k="number" placeholder="Number" value="${esc(t.number)}" style="flex:1.4">
-      <button type="button" class="iconbtn danger" data-tax-del="${i}">${Icon.x}</button>
+      <span class="sw" style="background:${TAX_COLORS[i]||TAX_COLORS[0]}"></span>
+      <div class="mfield" style="flex:1;margin:6px 0"><label>Label</label><input class="ctrl" data-tax="${i}" data-k="label" value="${esc(t.label)}"></div>
+      <div class="mfield" style="flex:1.4;margin:6px 0"><label>Number</label><input class="ctrl" data-tax="${i}" data-k="number" value="${esc(t.number)}"></div>
+      <button class="iconbtn danger" data-tax-del="${i}">${Icon.x}</button>
     </div>`).join('');
 }
 
-export function mount(ctx){
-  // Logo
-  const drop = document.getElementById('logo-drop');
-  const input = document.getElementById('logo-input');
-  drop.addEventListener('click', e => { if(e.target.id!=='logo-remove') input.click(); });
+export function mount(){
+  const $ = id => document.getElementById(id);
+  const input = $('logo-input');
+  $('logo-circle').addEventListener('click', () => input.click());
   input.addEventListener('change', e => {
     const f = e.target.files[0]; if(!f) return;
     if(f.size > 2*1024*1024){ toast('Image too large (max 2MB)'); return; }
     const r = new FileReader();
-    r.onload = ev => { logoData = ev.target.result;
-      document.getElementById('logo-prev').innerHTML = logoPrev(logoData); };
+    r.onload = ev => { logoData = ev.target.result; $('logo-inner').innerHTML = logoInner(logoData); };
     r.readAsDataURL(f);
   });
-  const rm = document.getElementById('logo-remove');
-  if(rm) rm.addEventListener('click', e => { e.stopPropagation(); logoData='';
-    document.getElementById('logo-prev').innerHTML = logoPrev(''); rm.remove(); });
 
-  // Tax numbers
-  const refreshTax = () => {
-    document.getElementById('tax-list').innerHTML = taxRows();
-    document.getElementById('tax-add').disabled = taxNumbers.length>=4;
-    wireTax();
-  };
+  const refreshTax = () => { $('tax-list').innerHTML = taxRows(); $('tax-add').disabled = taxNumbers.length>=4; wireTax(); };
   function wireTax(){
-    document.querySelectorAll('[data-tax]').forEach(el =>
-      el.addEventListener('input', e => {
-        taxNumbers[+el.dataset.tax][el.dataset.k] = e.target.value; }));
-    document.querySelectorAll('[data-tax-del]').forEach(b =>
-      b.addEventListener('click', () => { taxNumbers.splice(+b.dataset.taxDel,1); refreshTax(); }));
+    document.querySelectorAll('[data-tax]').forEach(el => el.addEventListener('input', () => {
+      taxNumbers[+el.dataset.tax][el.dataset.k] = el.value; }));
+    document.querySelectorAll('[data-tax-del]').forEach(b => b.addEventListener('click', () => { taxNumbers.splice(+b.dataset.taxDel,1); refreshTax(); }));
   }
-  document.getElementById('tax-add').addEventListener('click', () => {
-    if(taxNumbers.length>=4) return;
-    taxNumbers.push({ label:'', number:'', color:TAX_COLORS[taxNumbers.length] }); refreshTax(); });
+  $('tax-add').addEventListener('click', () => { if(taxNumbers.length>=4) return; taxNumbers.push({label:'',number:'',color:TAX_COLORS[taxNumbers.length]}); refreshTax(); });
   wireTax();
 
-  // Save
-  document.getElementById('save-profile').addEventListener('click', () => {
-    const g = n => (document.querySelector(`[name="${n}"]`)||{}).value || '';
+  $('save-profile').addEventListener('click', () => {
+    const g = id => ($(id)||{}).value || '';
     const p = {
       ...getProfile(),
-      businessName:g('businessName').trim(),
-      ownerName:g('ownerName').trim(),
-      address:g('address'),
-      email:g('email').trim(),
-      phone:g('phone').trim(),
-      website:g('website').trim(),
-      currency:g('currency'),
-      defaultTaxPercentage:parseFloat(g('defaultTaxPercentage'))||0,
-      startFromInvoiceNumber:parseInt(g('startFromInvoiceNumber'),10)||1,
-      preferredPdfStyle:g('preferredPdfStyle'),
-      bankingInformation:g('bankingInformation'),
-      footerNotes:g('footerNotes'),
-      isB2GEnabled:document.querySelector('[name="isB2GEnabled"]').checked,
+      businessName:g('businessName').trim(), ownerName:g('ownerName').trim(), email:g('email').trim(),
+      website:g('website').trim(), phone:g('phone').trim(), address:g('address'),
+      currency:g('currency'), defaultTaxPercentage:parseFloat(g('defaultTaxPercentage'))||0,
+      startFromInvoiceNumber:parseInt(g('startFromInvoiceNumber'),10)||1, preferredPdfStyle:g('preferredPdfStyle'),
+      bankingInformation:g('bankingInformation'), footerNotes:g('footerNotes'),
+      isB2GEnabled:$('isB2GEnabled').checked,
       taxNumbers:taxNumbers.filter(t=>t.label||t.number).map((t,i)=>({...t,color:TAX_COLORS[i]||TAX_COLORS[0]})),
       logoUri:logoData,
     };

@@ -27,7 +27,7 @@ export function html(){
 
   return `<div class="screen">
     <div class="topbar"><h1>Business Cards</h1></div>
-    <div class="card">
+    <div class="mcard">
       <h3>${Icon.card} Preview</h3>
       ${card}
       <p class="section-hint" style="margin-top:12px">Generated from your business profile. Use your phone's screenshot or share to send it.</p>

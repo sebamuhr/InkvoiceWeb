@@ -1,77 +1,83 @@
-import { getInvoices, deleteInvoice } from '../store.js';
-import { money, fmtDate, esc, toast } from '../util.js';
+import { getInvoices, saveInvoice, deleteInvoice, getProfile } from '../store.js';
+import { money, money2, fmtISO, esc, toast } from '../util.js';
 import { Icon } from '../icons.js';
 
-let search = '';
+let filterStatus = 'All';
 
 export function html(ctx){
   const type = ctx.arg || 'invoice';
-  const term = search.trim().toLowerCase();
+  const p = getProfile();
   let docs = getInvoices()
-    .filter(i => (i.type||'invoice') === type)
+    .filter(i => (i.type||'invoice')===type)
     .sort((a,b)=> (b.creationDateMillis||0)-(a.creationDateMillis||0));
-  if(term){
-    docs = docs.filter(i =>
-      (i.invoiceNumber||'').toLowerCase().includes(term) ||
-      (i.clientName||'').toLowerCase().includes(term) ||
-      (i.status||'').toLowerCase().includes(term));
-  }
+  if(filterStatus!=='All') docs = docs.filter(i => i.status===filterStatus);
 
-  const rows = docs.length ? docs.map(rowItem).join('')
-    : `<div class="empty">${Icon.doc}<div>No ${type}s yet. Tap <b>+</b> to create one.</div></div>`;
+  const total = docs.reduce((a,i)=> a+(Number(i.grandTotal)||0), 0);
+  const tax   = docs.reduce((a,i)=> a+(Number(i.taxAmount)||0), 0);
+  const taxPct = docs.length ? (docs[0].taxRatePercentage||0) : (p.defaultTaxPercentage||0);
+
+  const cards = docs.length ? docs.map(card).join('')
+    : `<div class="empty">${Icon.doc}<div>No ${type}s yet. Tap <b>Create</b> to add one.</div></div>`;
+
+  const opts = ['All','Pending','Paid','Overdue','Cancelled']
+    .map(s=>`<option ${filterStatus===s?'selected':''}>${s}</option>`).join('');
 
   return `<div class="screen">
-    <div class="topbar"><h1>Documents</h1></div>
-    <div class="seg" style="margin-bottom:12px">
-      <button class="${type==='invoice'?'on':''}" onclick="nav('/invoices')">Invoices</button>
-      <button class="${type==='quotation'?'on':''}" onclick="nav('/quotations')">Quotations</button>
+    <div class="totalcard">
+      <div>
+        <div class="big">TOTAL: ${money2(total,p.currency)}</div>
+        <div class="sub">Tax ${taxPct}%: ${money2(tax,p.currency)}</div>
+      </div>
+      <div class="filter">
+        <select id="filter">${opts}</select>
+        <span class="chev">${Icon.chev}</span>
+      </div>
     </div>
-    <div class="field" style="position:relative">
-      <input id="search" placeholder="Search number, client, status…" value="${esc(search)}"
-             style="padding-left:42px">
-      <span style="position:absolute;left:13px;top:12px;color:var(--muted)">${Icon.search}</span>
+
+    <div class="radios">
+      <div class="radio ${type==='invoice'?'on':''}" onclick="nav('/invoices')"><span class="dot"></span>Invoices</div>
+      <div class="radio ${type==='quotation'?'on':''}" onclick="nav('/quotations')"><span class="dot"></span>Quotations</div>
     </div>
-    <div class="card"><div class="list">${rows}</div></div>
+
+    ${cards}
   </div>`;
 }
 
-function rowItem(inv){
-  const isInv = inv.type !== 'quotation';
-  return `<div class="row-item">
-    <div style="display:flex;align-items:center;gap:12px;min-width:0;flex:1" onclick="nav('/view/${inv.id}')">
-      <div class="avatar ${isInv?'inv':'qt'}">${isInv?'INV':'QT'}</div>
-      <div style="min-width:0">
-        <div class="num">${esc(inv.invoiceNumber)} <span class="badge ${inv.status}" style="margin-left:4px">${inv.status}</span></div>
-        <div class="who">${esc(inv.clientName||'—')} · ${fmtDate(inv.creationDateMillis)}</div>
-      </div>
+function card(inv){
+  const p = getProfile();
+  const advance = Number(inv.advancePayment)||0;
+  const due = (Number(inv.grandTotal)||0) - advance;
+  const paid = inv.status==='Paid';
+  return `<div class="doccard">
+    <div style="min-width:0;flex:1;cursor:pointer" onclick="nav('/view/${inv.id}')">
+      <div class="no">N° ${esc(inv.invoiceNumber.replace(/^[NQ]/,''))}</div>
+      <div class="client">${esc(inv.clientName||'—')}</div>
+      <div class="meta">Created: ${fmtISO(inv.creationDateMillis)}<br>Total: ${money2(inv.grandTotal,p.currency)}</div>
+      ${advance>0?`<div class="due">Due: ${money2(due,p.currency)}</div>`:''}
     </div>
-    <div style="display:flex;align-items:center;gap:2px">
-      <div class="amt" style="margin-right:6px">${money(inv.grandTotal, inv.currency)}</div>
-      <button class="iconbtn" title="Duplicate" data-dup="${inv.id}">${Icon.copy}</button>
-      <button class="iconbtn danger" title="Delete" data-del="${inv.id}">${Icon.trash}</button>
+    <div class="right">
+      <div class="toggle ${paid?'paid':''}" data-toggle="${inv.id}" title="${paid?'Paid':'Unpaid'}"><span class="knob"></span></div>
+      <button class="iconbtn trash" data-del="${inv.id}">${Icon.trash}</button>
     </div>
   </div>`;
 }
 
 export function mount(ctx){
-  const s = document.getElementById('search');
-  if(s){
-    s.addEventListener('input', e => { search = e.target.value; });
-    // re-render on debounce so the list filters live
-    let t; s.addEventListener('input', () => { clearTimeout(t); t=setTimeout(()=>{
-      const pos = s.selectionStart;
-      ctx.navigate(ctx.path); // re-render current route
-      const ns = document.getElementById('search');
-      if(ns){ ns.focus(); ns.setSelectionRange(pos,pos); }
-    }, 200); });
-  }
-  document.querySelectorAll('[data-dup]').forEach(b =>
-    b.addEventListener('click', e => { e.stopPropagation(); ctx.navigate('/create?duplicate='+b.dataset.dup); }));
-  document.querySelectorAll('[data-del]').forEach(b =>
-    b.addEventListener('click', e => {
-      e.stopPropagation();
-      if(confirm('Delete this document? This cannot be undone.')){
-        deleteInvoice(b.dataset.del); toast('Deleted'); ctx.navigate(ctx.path);
-      }
-    }));
+  const f = document.getElementById('filter');
+  if(f) f.addEventListener('change', e => { filterStatus = e.target.value; ctx.navigate(ctx.path); });
+
+  document.querySelectorAll('[data-toggle]').forEach(el => el.addEventListener('click', e => {
+    e.stopPropagation();
+    const inv = getInvoices().find(i=>i.id===el.dataset.toggle);
+    inv.status = inv.status==='Paid' ? 'Pending' : 'Paid';
+    saveInvoice(inv);
+    el.classList.toggle('paid', inv.status==='Paid');
+  }));
+
+  document.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', e => {
+    e.stopPropagation();
+    if(confirm('Delete this document? This cannot be undone.')){
+      deleteInvoice(b.dataset.del); toast('Deleted'); ctx.navigate(ctx.path);
+    }
+  }));
 }

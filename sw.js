@@ -1,6 +1,6 @@
 /* Inkvoice service worker — offline-first, app-shell cache.
    Bump CACHE version whenever shell files change so clients update. */
-const CACHE = 'inkvoice-v1';
+const CACHE = 'inkvoice-v2';
 
 // All paths relative to the SW scope (works on GitHub Pages subpaths).
 const SHELL = [
@@ -12,6 +12,7 @@ const SHELL = [
   './js/store.js',
   './js/util.js',
   './js/icons.js',
+  './js/ui.js',
   './js/pdf.js',
   './js/views/dashboard.js',
   './js/views/create.js',
