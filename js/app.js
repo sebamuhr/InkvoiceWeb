@@ -68,7 +68,16 @@ document.addEventListener('input', e => {
 });
 
 if('serviceWorker' in navigator){
-  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(()=>{}));
+  // When a new worker takes control, reload once so fresh code is used
+  // (prevents "blank page after update" from a stale worker).
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if(!window.__swReloaded){ window.__swReloaded = true; location.reload(); }
+  });
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js')
+      .then(reg => reg.update())
+      .catch(()=>{});
+  });
 }
 
 render();
