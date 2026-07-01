@@ -2,7 +2,7 @@
    NETWORK-FIRST: always try the network so updated code loads immediately when
    online; fall back to cache only when offline. This avoids "blank page after
    update" caused by a stale cache-first worker. */
-const CACHE = 'inkvoice-v8';
+const CACHE = 'inkvoice-v9';
 
 const SHELL = [
   './', './index.html', './css/styles.css', './vendor/jspdf.umd.min.js', './vendor/fonts.js',

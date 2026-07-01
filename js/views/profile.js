@@ -29,7 +29,7 @@ export function html(){
 
     <h3 class="section-h" style="font-size:20px">Tax Number</h3>
     <div id="tax-list">${taxRows()}</div>
-    <button class="btn block" id="tax-add" ${taxNumbers.length>=4?'disabled':''} style="margin-top:4px">+ Add Another Tax Number</button>
+    <button class="btn block" id="tax-add" ${taxNumbers.length>=4?'disabled':''} style="margin-top:4px">${taxNumbers.length ? '+ Add Another Tax Number' : '+ Add a Tax Number'}</button>
 
     <div class="two" style="margin-top:14px">
       ${mfield({id:'defaultTaxPercentage',label:'Default Tax Rate (%)',type:'number',value:p.defaultTaxPercentage})}
@@ -86,7 +86,12 @@ export function mount(){
     r.readAsDataURL(f);
   });
 
-  const refreshTax = () => { $('tax-list').innerHTML = taxRows(); $('tax-add').disabled = taxNumbers.length>=4; wireTax(); };
+  const refreshTax = () => {
+    $('tax-list').innerHTML = taxRows();
+    $('tax-add').disabled = taxNumbers.length>=4;
+    $('tax-add').textContent = taxNumbers.length ? '+ Add Another Tax Number' : '+ Add a Tax Number';
+    wireTax();
+  };
   function wireTax(){
     document.querySelectorAll('[data-tax]').forEach(el => el.addEventListener('input', () => { taxNumbers[+el.dataset.tax][el.dataset.k] = el.value; }));
     document.querySelectorAll('[data-tax-del]').forEach(b => b.addEventListener('click', () => { taxNumbers.splice(+b.dataset.taxDel,1); refreshTax(); }));

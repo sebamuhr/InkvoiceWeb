@@ -48,7 +48,14 @@ function render(){
   const match = ROUTES.find(r => r.test(path)) || ROUTES[0];
   const ctx = { params, navigate, arg:match.arg, path };
   const app = document.getElementById('app');
-  app.innerHTML = `<div class="fade">${match.view.html(ctx)}</div>` + tabbar(match.key);
+  // iPhone has no OS back button — a small top-left chevron returns to Home.
+  // The Home screen and the full-screen PDF viewer (its own bar) are excluded.
+  const isHome = path==='/' || path==='';
+  const isView = path.startsWith('/view/');
+  const showBack = !isHome && !isView;
+  app.classList.toggle('with-back', showBack);
+  const back = showBack ? `<button class="backhome" onclick="nav('/')" aria-label="Home">${Icon.back}</button>` : '';
+  app.innerHTML = back + `<div class="fade">${match.view.html(ctx)}</div>` + tabbar(match.key);
   if(match.view.mount) match.view.mount(ctx);
 }
 

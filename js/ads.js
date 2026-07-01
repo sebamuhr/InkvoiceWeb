@@ -29,22 +29,17 @@ export const AD_CONFIG = {
 
 export function mountAdSlot(container, slotIndex = 0){
   if(!container) return;
-  // Render the frame first so the layout never jumps, then try to fill it.
+  // Show nothing at all unless a real ad tag is configured AND we're online.
+  if(!AD_CONFIG.enabled || !AD_CONFIG.adHtml.trim() || !navigator.onLine){
+    container.remove();
+    return;
+  }
   container.innerHTML = '<div class="ad-label">Advertisement</div><div class="ad-body"></div>';
   const body = container.querySelector('.ad-body');
-
-  if(!AD_CONFIG.enabled || !AD_CONFIG.adHtml.trim()){
-    body.innerHTML = '<div class="ad-ph">Ad slot — configure in <code>js/ads.js</code></div>';
-    return;
-  }
-  if(!navigator.onLine){
-    body.innerHTML = '<div class="ad-ph">Ads appear when you’re online</div>';
-    return;
-  }
   // An ad failure must never break the app. `{SLOT}` in adHtml → this slot's index,
   // so a snippet can build unique element ids across the repeated placements.
   try{ injectHtml(body, AD_CONFIG.adHtml.replace(/\{SLOT\}/g, slotIndex)); }
-  catch{ body.innerHTML = ''; }
+  catch{ container.remove(); }
 }
 
 // innerHTML does not execute <script>, so re-create any script nodes.

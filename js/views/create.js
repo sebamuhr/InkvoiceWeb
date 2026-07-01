@@ -12,7 +12,7 @@ function blankDraft(type='invoice'){
   return {
     id:uid(), isEdit:false, type, invoiceNumber:peekNextNumber(type),
     clientName:'', clientEmail:'', clientAddress:'', clientVatId:'', clientPhone:'',
-    creationDateMillis:todayMs(), dueDateMillis:plusDaysMs(todayMs(),14),
+    creationDateMillis:todayMs(), dueDateMillis:null,
     items:[], taxRatePercentage:p.defaultTaxPercentage||0, discountPercent:0, advancePayment:0,
     status:'Pending', notes:'', footerNotes:p.footerNotes||'',
     pdfStyle:p.preferredPdfStyle||'Professional',
@@ -24,7 +24,7 @@ function fromExisting(src, dup){
   d.items = (d.items||[]).map(i => ({ ...i, id:uid() }));
   d.b2g = !!d.buyerReference;
   if(dup){ d.id=uid(); d.isEdit=false; d.invoiceNumber=peekNextNumber(d.type);
-    d.creationDateMillis=todayMs(); d.dueDateMillis=plusDaysMs(todayMs(),14); d.status='Pending'; }
+    d.creationDateMillis=todayMs(); d.dueDateMillis=null; d.status='Pending'; }
   else d.isEdit=true;
   return d;
 }
@@ -67,11 +67,11 @@ export function html(ctx){
 
     <div class="two">
       ${mfield({id:'d-date',label:'Creation',required:true,type:'date',value:toInputDate(draft.creationDateMillis),iconRight:Icon.calendar})}
-      ${mfield({id:'d-due',label:'Due',required:true,type:'date',value:toInputDate(draft.dueDateMillis),iconRight:Icon.calendar})}
+      ${mfield({id:'d-due',label:'Due',required:true,type:'date',value:draft.dueDateMillis?toInputDate(draft.dueDateMillis):'',iconRight:Icon.calendar})}
     </div>
     <div class="two">
-      ${mfield({id:'f-adv',label:'Advance',type:'number',value:draft.advancePayment,prefix:cur})}
-      ${mfield({id:'f-disc',label:'Discount',type:'number',value:draft.discountPercent})}
+      ${mfield({id:'f-adv',label:'Advance',type:'number',value:draft.advancePayment,prefix:cur,attrs:Number(draft.advancePayment)?'':'data-zero="1"'})}
+      ${mfield({id:'f-disc',label:'Discount',type:'number',value:draft.discountPercent,attrs:Number(draft.discountPercent)?'':'data-zero="1"'})}
     </div>
 
     <h3 class="section-h">${isQ?'Quotation':'Invoice'} Items</h3>
@@ -161,6 +161,15 @@ export function mount(ctx){
   $('d-date').addEventListener('change', e => draft.creationDateMillis = fromInputDate(e.target.value));
   $('d-due').addEventListener('change', e => draft.dueDateMillis = fromInputDate(e.target.value));
   numBind('f-adv','advancePayment'); numBind('f-disc','discountPercent');
+  // Advance/Discount show a greyed "0" that clears on focus and returns on blur.
+  [['f-adv','advancePayment'],['f-disc','discountPercent']].forEach(([id,key]) => {
+    const el = $(id); if(!el) return;
+    el.addEventListener('focus', () => { if(el.dataset.zero){ el.value=''; delete el.dataset.zero; } });
+    el.addEventListener('input', () => { delete el.dataset.zero; });
+    el.addEventListener('blur', () => {
+      if(el.value.trim()===''){ el.value='0'; el.dataset.zero='1'; draft[key]=0; refreshSummary(); }
+    });
+  });
 
   $('b2g').addEventListener('change', e => {
     draft.b2g = e.target.checked;

@@ -130,6 +130,27 @@ Data in localStorage. 4 PDF styles (Professional/Elegant/Minimalist/Classic) via
 - To re-run screenshots: `cd InkvoiceWeb && SP=<scratchpad> node <scratchpad>/shot.mjs web`
   (import path to playwright-core is hard-coded in shot.mjs; server must run on :8000).
 
+### 2026-07-02 — mechanics parity pass (biz card, dates, logo, nav)
+Compared against Android source (`MainActivity.kt` BusinessCardDialog / BusinessCardContent /
+captureBusinessCardAsBitmap) and reworked several mechanics to match:
+- **Business card**: replaced "take a screenshot" with the real Android flow — a
+  **background-color slider** (same ~55-colour palette as Android) + **Share Card** that
+  draws the card on a 1000×650 canvas and shares a **PNG** via the Web Share API (download
+  fallback). Text colour auto-flips black/white by luminance; chosen colour persists in
+  localStorage. Verified generated PNG + light/dark preview via Playwright.
+- **Profile logo**: now fills the whole circle (`object-fit:cover`, clipped round on
+  `#logo-inner`) instead of floating small with padding.
+- **Tax-number button**: label is now "+ Add a Tax Number" when none exist, "+ Add Another
+  Tax Number" afterwards (updates live on add/remove).
+- **Create dates**: Creation/Due no longer overlap on small screens (`min-width:0` on grid
+  cells + hid the double native calendar glyph). **Due date is no longer prefilled** (starts
+  empty, still required on save).
+- **Advance/Discount**: the prefilled `0` is now greyed and clears on focus, restoring on blur.
+- **iPhone back nav**: added a small top-left `‹` chevron on every screen (except Home and
+  the PDF viewer) that returns to Home.
+- Ads slot renders nothing until a real tag is configured (no dev placeholder for users).
+- SW cache bumped to v9.
+
 ### 2026-07-01
 - Set up GitHub repo `sebamuhr/InkvoiceWeb` and pushed the clean rebuild.
 - Added this `progress.md` (to be updated every prompt).
