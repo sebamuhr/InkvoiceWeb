@@ -171,3 +171,6 @@ captureBusinessCardAsBitmap) and reworked several mechanics to match:
 - Pixel-perfect UI parity iteration (active).
 - XRechnung/ZUGFeRD XML (B2G EN16931) — Android has it, web doesn't.
 - Multi-language (EN/DE/ES/FR).
+
+### 2026-07-02 — Home shows business logo
+- Home screen now shows the business logo (round, filled) when one is set; falls back to the "Inkvoice." wordmark when there is no logo. SW cache -> v10.
