@@ -181,10 +181,15 @@ chevron clears content.
 
 ## 8. Open questions / not done yet
 
-- **Ads/monetization decision pending:** Monetag needs a non-free domain (github.io is
-  rejected). Options: (A) buy a cheap custom domain (~$10/yr) + CNAME to GitHub Pages, apply
-  to Adsterra; (B) skip ads, add a one-time "Pro unlock"/tip; (C) keep iPhone PWA clean and
-  monetize only the Android app. **Awaiting user's choice.**
+- **Ads DECISION (2026-07-03):** keep the SAME model as the Android app — app is offline for
+  all invoicing, connects to the internet **only to show ads**; all client/invoice data stays
+  on device. AdMob (Android) can't run on web, so the web uses a **web ad network** instead.
+  The user already owns **`elorate.net`** (Netlify), so the free-host blocker is gone: point a
+  subdomain (e.g. `app.elorate.net`) at GitHub Pages via `CNAME`. **Adsterra** is the intended
+  network (approves utility sites; AdSense often won't). **TODO to go live:** (1) set the
+  custom domain, (2) user signs up at Adsterra + gives the banner snippet, (3) paste into
+  `js/ads.js` `AD_CONFIG.adHtml` + `enabled:true`. README updated to reflect this model.
+  (Ad revenue on an offline PWA will be small; that's accepted.)
 - **XRechnung/ZUGFeRD XML** (B2G EN16931) — Android has it, web doesn't yet.
 - **Multi-language** UI/invoice (EN/DE/ES/FR) — fields exist in profile, not wired to output.
 - Ongoing: keep chasing exact UI/mechanics parity as the user spots differences.
