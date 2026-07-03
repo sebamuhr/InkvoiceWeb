@@ -48,10 +48,14 @@ export function html(ctx){
 
 const ADS_EVERY = 5;
 function cardsWithAds(docs){
+  // Anchor each ad to a boundary counted from the OLDEST item (list is newest-first),
+  // so an ad stays put between the same document pair (#5/#6, #10/#11…) as new
+  // documents are added on top — matches the Android app (InvoiceListScreen.kt).
   let out = '', ad = 0;
   docs.forEach((inv, i) => {
     out += card(inv);
-    if((i + 1) % ADS_EVERY === 0) out += `<div class="ad-slot" id="ad-slot-${ad++}"></div>`;
+    const below = docs.length - 1 - i;
+    if(below > 0 && below % ADS_EVERY === 0) out += `<div class="ad-slot" id="ad-slot-${ad++}"></div>`;
   });
   return out;
 }

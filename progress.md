@@ -113,11 +113,12 @@ chevron clears content.
   file, download fallback). No PDF.js dependency.
 - **Create (`create.js`):** summary card (N° + Subtotal/Total); Invoice/Quotation radios;
   Client Information + B2G checkbox; fields Client Name*/Email/Tax Number/Address/Creation*/
-  Due*/Advance/Discount; **Add Item** + **PDF** buttons. Tapping **PDF** opens a style dialog
+  Due/Advance/Discount; **Add Item** + **PDF** buttons. Tapping **PDF** opens a style dialog
   (4 thumbnails from `pdfsamples/`) → Generate & View. Client name autocomplete via
-  `datalist`. **Due date is NOT prefilled** (starts empty, required on save). **Advance &
-  Discount** show a **greyed `0`** that clears on focus and restores on blur. Creation/Due
-  date fields don't overlap on small screens.
+  `datalist`. **Due date is NOT prefilled and is required ONLY when B2G is enabled** (the `*`
+  on Due / Tax Number / Address appears/disappears live with the B2G toggle — matches Android
+  v25). **Advance & Discount** show a **greyed `0`** that clears on focus and restores on blur.
+  Creation/Due date fields don't overlap on small screens.
 - **Lists (`list.js`):** shared for Invoices/Quotations; total card, status filter, doc
   cards with paid toggle + delete + search. Optional ad slot after every 5th doc (see Ads).
 - **Profile (`profile.js`):** logo circle (tap to pick; **logo now fills the whole circle**),
@@ -191,6 +192,21 @@ chevron clears content.
 ---
 
 ## 9. Changelog (newest first)
+
+### 2026-07-03 — parity with Android PUBLISHING_PROGRESS.md (§10) + floating back arrow
+Compared the Android app's post-launch notes against the web app:
+- **Due date now required only when B2G is on** (was always required). The `*` on Due /
+  Tax Number / Address toggles live with the B2G checkbox. Matches Android v25 (§10-D).
+- **Ad slots anchor from the OLDEST item** (`below = len-1-i; below % 5 == 0`), so an ad
+  stays put between the same document pair (#5/#6, #10/#11…) as new docs are added on top.
+  Matches Android `InvoiceListScreen.kt` (§10-A). Verified: 12 docs → ads after N°011 and
+  N°006, top 2 newest carry none.
+- **Back chevron** reworked: floats on top of everything, semi-transparent (opacity ~.68,
+  blurred), **no reserved vertical space** (removed the `with-back` top-padding). SW → v11→v12.
+- Confirmed already-matching: Home business logo, minimal in-feed-only ad philosophy.
+- Note: Android's future "one-time remove-ads purchase" can't use Play Billing on a PWA;
+  ties into the still-open web monetization decision.
+
 
 ### 2026-07-02/03 — Home logo + mechanics parity pass (biz card, dates, logo, nav, zero)
 Compared against Android `MainActivity.kt` (`BusinessCardDialog` / `BusinessCardContent` /

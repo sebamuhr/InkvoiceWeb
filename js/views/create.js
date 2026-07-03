@@ -67,7 +67,7 @@ export function html(ctx){
 
     <div class="two">
       ${mfield({id:'d-date',label:'Creation',required:true,type:'date',value:toInputDate(draft.creationDateMillis),iconRight:Icon.calendar})}
-      ${mfield({id:'d-due',label:'Due',required:true,type:'date',value:draft.dueDateMillis?toInputDate(draft.dueDateMillis):'',iconRight:Icon.calendar})}
+      ${mfield({id:'d-due',label:'Due'+(draft.b2g?' *':''),type:'date',value:draft.dueDateMillis?toInputDate(draft.dueDateMillis):'',iconRight:Icon.calendar})}
     </div>
     <div class="two">
       ${mfield({id:'f-adv',label:'Advance',type:'number',value:draft.advancePayment,prefix:cur,attrs:Number(draft.advancePayment)?'':'data-zero="1"'})}
@@ -174,6 +174,9 @@ export function mount(ctx){
   $('b2g').addEventListener('change', e => {
     draft.b2g = e.target.checked;
     $('b2g-fields').classList.toggle('hidden', !draft.b2g);
+    // Due / Tax Number / Address become required (get a *) only under B2G — matches Android.
+    const star = (id, base) => { const l = document.querySelector(`label[for="${id}"]`); if(l) l.textContent = base + (draft.b2g ? ' *' : ''); };
+    star('d-due','Due'); star('c-vat','Tax Number'); star('c-addr','Address');
     if(draft.b2g && !p.phone) toast('Add a phone number in Profile for B2G');
   });
 
@@ -231,8 +234,8 @@ export function mount(ctx){
   function validate(){
     if(!draft.clientName.trim()){ toast('Client name is required'); return false; }
     if(!draft.items.some(i=>i.description.trim())){ toast('Add at least one item'); return false; }
-    if(!draft.dueDateMillis){ toast('Due date is required'); return false; }
     if(draft.b2g){
+      if(!draft.dueDateMillis){ toast('Due date is required for B2G'); return false; }
       if(!draft.buyerReference.trim()){ toast('Buyer reference required for B2G'); return false; }
       if(!draft.clientVatId.trim()){ toast('Client Tax ID required for B2G'); return false; }
       if(!draft.clientAddress.trim()){ toast('Client address required for B2G'); return false; }
