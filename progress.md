@@ -198,6 +198,19 @@ chevron clears content.
 
 ## 9. Changelog (newest first)
 
+### 2026-07-04 — Custom domain app.elorate.net live (ads phase 1)
+- Added DNS record at the domain's DNS host (Canva/Tucows, nameservers `systemdns.com`):
+  `CNAME app → sebamuhr.github.io`. Left the existing `@`/`www`/`TXT` (Netlify + AdMob
+  `app-ads.txt`) untouched.
+- Committed `CNAME` file (`app.elorate.net`) → GitHub Pages auto-registers the custom domain.
+- Verified: `app.elorate.net` resolves to GitHub Pages (185.199.108–111.153); HTTP serves the
+  app (`<title>Inkvoice</title>`, manifest + js load 200). **HTTPS cert issuing** (GitHub auto,
+  a few min). Next: enable "Enforce HTTPS" in repo Settings → Pages.
+- **Remaining for ads:** user signs up at Adsterra → adds `https://app.elorate.net` → creates a
+  Banner unit → sends the snippet + ads.txt line → paste into `js/ads.js` (`enabled:true`) + add
+  `ads.txt` at site root.
+
+
 ### 2026-07-03 — parity with Android PUBLISHING_PROGRESS.md (§10) + floating back arrow
 Compared the Android app's post-launch notes against the web app:
 - **Due date now required only when B2G is on** (was always required). The `*` on Due /
