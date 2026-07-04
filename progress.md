@@ -198,6 +198,16 @@ chevron clears content.
 
 ## 9. Changelog (newest first)
 
+### 2026-07-04 — Adsterra banner wired in (ads phase 2)
+- `js/ads.js`: enabled an **Adsterra 320×50 banner** (key `5df1a997…`), matching the Android
+  `AdSize.BANNER`. Each placement renders in its **own srcdoc iframe** so multiple banners on
+  one page don't collide over Adsterra's global `atOptions`. Shows after every 5th document,
+  online only. Verified 2 isolated iframes on a 12-doc list, no errors.
+- `sw.js`: now **bypasses cross-origin requests** so the ad script runs untouched / uncached.
+- **TODO:** (1) user confirms "Enforce HTTPS" is on; (2) add `ads.txt` at site root — need the
+  full block from Adsterra (Publisher ID `30100194`); (3) ads only fill once Adsterra approves
+  the site — empty slot until then is normal. SW → v13.
+
 ### 2026-07-04 — Custom domain app.elorate.net live (ads phase 1)
 - Added DNS record at the domain's DNS host (Canva/Tucows, nameservers `systemdns.com`):
   `CNAME app → sebamuhr.github.io`. Left the existing `@`/`www`/`TXT` (Netlify + AdMob
