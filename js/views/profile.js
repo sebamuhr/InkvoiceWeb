@@ -118,10 +118,17 @@ export function mount(){
       taxNumbers:taxNumbers.filter(t=>t.label||t.number).map((t,i)=>({...t,color:TAX_COLORS[i]||TAX_COLORS[0]})),
       logoUri:logoData,
     };
-    if(!p.businessName){ toast('Business name is required'); return; }
+    // Mandatory fields must match the tab-gate (isProfileValid): a business OR owner
+    // name, plus a valid email. Otherwise the profile would "save" but the tabs would
+    // stay locked with no explanation.
+    const nameOk = p.businessName || p.ownerName;
+    const emailOk = p.email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(p.email);
+    if(!nameOk){ toast('Business or owner name is required'); return; }
+    if(!emailOk){ toast('A valid email is required'); return; }
     saveProfile(p);
     toast('Profile saved');
-    // Unlock Create/Invoices/Biz Card in place now that the profile may be valid.
-    if(window.refreshTabs) window.refreshTabs();
+    // Profile is now valid → go to Home. The re-render unlocks Create/Invoices/Biz Card
+    // and shows the logo (if set) in place of the wordmark.
+    window.nav('/');
   });
 }
