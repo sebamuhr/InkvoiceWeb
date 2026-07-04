@@ -25,8 +25,10 @@
 | **This app (only thing we modify)** | `/home/sebastian/Documents/APPS/InkvoiceWeb` |
 | **Android reference — READ ONLY, never modify** | `/home/sebastian/Documents/APPS/Inkvoice` (Kotlin/Compose) |
 | **Git** | remote `origin` → `https://github.com/sebamuhr/InkvoiceWeb.git`, branch **`main`** |
-| **Hosting** | GitHub Pages → live at **https://sebamuhr.github.io/InkvoiceWeb/** |
-| **Run locally** | `cd InkvoiceWeb && python3 -m http.server 8000` → http://localhost:8000 |
+| **Hosting — app (primary)** | **Hostinger** → **https://app.inkvoiceapp.com** (repo-root files in `public_html/app/`). Manual upload. |
+| **Hosting — marketing site** | **Hostinger** → **https://inkvoiceapp.com** (`site/` contents in `public_html/`). Manual upload. |
+| **Hosting — app (legacy)** | GitHub Pages → **https://app.elorate.net** (kept for existing installs; fed by `git push`) |
+| **Run locally** | `cd InkvoiceWeb && python3 -m http.server 8000` → http://localhost:8000 (app) · `/site/` (marketing) |
 | **GitHub identity** | user `sebamuhr`, email `muhrmuhr@gmail.com` |
 
 > ⚠️ **The Android folder is strictly read-only.** We only ever read it as the source of
@@ -38,7 +40,7 @@
 - **Service worker is network-first** (`sw.js`): it always tries the network first so new
   code loads immediately when online, and falls back to cache when offline. On any file
   change bump the cache constant `const CACHE = 'inkvoice-vNN'` so old caches are purged.
-  **Current: `inkvoice-v10`.**
+  **Current: `inkvoice-v16`.**
 - If you add/remove a file, also update the `SHELL` array in `sw.js`.
 
 ---
@@ -48,12 +50,15 @@
 ```
 index.html · manifest.webmanifest · sw.js · README.md · progress.md · .gitignore
 css/styles.css
+site/            marketing landing page for inkvoiceapp.com (self-contained, own CSS +
+                 assets/screens/ app screenshots + assets/*.png PDF style renders)
 vendor/jspdf.umd.min.js        (jsPDF, UMD → window.jspdf)
 vendor/fonts.js                (~120KB base64 of embedded device fonts; registerFonts(doc))
 icons/{icon-192,icon-512,apple-touch-icon,maskable-512}.png
 pdfsamples/{professional,elegant,minimalist,classic}.png   (style-picker thumbnails)
 js/
-  app.js         router + bottom tab bar + top-left back chevron + SW registration
+  app.js         router + bottom tab bar + top-left back chevron + SW registration +
+                 phone-only gate (desktop/tablet get a "phone app" notice; ?app forces app)
   store.js       localStorage model (profile, clients, invoices), numbering
   util.js        formatting/date/money/compute helpers
   ui.js          mfield() / mselect() Material floating-label field builders
@@ -197,6 +202,39 @@ chevron clears content.
 ---
 
 ## 9. Changelog (newest first)
+
+### 2026-07-04 — Marketing site + own domain (inkvoiceapp.com) + phone-only gate
+Gave Inkvoice a professional public face on its **own domain**, and moved the app to a
+matching subdomain so nothing user-facing points at the developer's `elorate.net` anymore.
+Hosted on **Hostinger** (manual file upload), separate from the GitHub Pages deploy.
+- **Marketing site** (`site/`, no build): standalone static landing page. Hero shows a live
+  **crossfade slideshow of real app screenshots** (Home / Invoices / Quotations / Biz Card /
+  Profile) inside a phone frame, with the four real PDF styles fanned behind it. Screenshots
+  were captured **headlessly** (Playwright) from seeded fake "John Doe" localStorage data —
+  no real user data. Plus features grid, install section (Google Play badge + iPhone
+  Add-to-Home-Screen steps), FAQ, and the "few small ads, we promise" microcopy. Theme-aware,
+  responsive. Slideshow auto-activates from `site/assets/screens/*.png`.
+- **Profile save fix** (`js/views/profile.js`): Save now validates the same fields the
+  tab-gate needs (business **or** owner name + a valid email) and **navigates to Home** on
+  success, so Create/Invoices/Biz Card unlock and the logo shows in one step. SW → **v16**.
+- **Own domain, live on Hostinger:**
+  - **`inkvoiceapp.com`** → the marketing site (`site/` contents in `public_html/`).
+  - **`app.inkvoiceapp.com`** → the app (repo-root files in `public_html/app/`).
+  - `app.elorate.net` (GitHub Pages) left **intact** for existing installs; new users come in
+    via the new domain. Install links across the marketing site AND the app's own landing
+    (`js/views/landing.js`) now point at **app.inkvoiceapp.com**. (`com.elorate.invoicefree`
+    is the **Play package id**, not a domain — left unchanged.)
+- **Phone-only gate** (`js/app.js`): the app runs ONLY when standalone **and** on a
+  phone-sized touch screen (`maxTouchPoints>0` / `pointer:coarse` **and** shorter screen side
+  ≤ 500px). Desktop/tablet — even if installed — get a "📱 Inkvoice is a phone app, open
+  inkvoiceapp.com on your phone" notice, because data is device-only with **no sync yet**.
+  `?app` still forces the app (for previews/screenshots).
+- **Verified LIVE** (headless Playwright vs the real URLs): inkvoiceapp.com 200; app on
+  desktop → phone notice; app on iPhone → install page; `?app` → app runs; marketing → 3×
+  app.inkvoiceapp.com links; zero leftover `app.elorate.net` on the marketing site.
+- **Deploy = manual upload** to Hostinger: `site/` contents → `public_html/`, repo app files
+  → `public_html/app/`. Local staging in `_upload/` (gitignored). This is separate from the
+  GitHub Pages / `git push` flow that still feeds app.elorate.net.
 
 ### 2026-07-04 — Adsterra banner wired in (ads phase 2)
 - `js/ads.js`: enabled an **Adsterra 320×50 banner** (key `5df1a997…`), matching the Android

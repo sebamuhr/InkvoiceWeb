@@ -1,3 +1,7 @@
 node_modules/
 .DS_Store
 *.log
+
+# Hostinger deploy artifacts (staging folder + zips) — not part of the source
+_upload/
+*.zip

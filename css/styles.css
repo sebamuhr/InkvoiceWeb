@@ -58,6 +58,21 @@ button,input,select,textarea{font-family:inherit;font-size:16px;color:var(--ink)
 /* locked until the profile is filled (Create / Invoices / Biz Card) */
 .tabbar button.disabled{opacity:.38;cursor:not-allowed}
 
+/* ---------- Install / landing page (shown in a browser tab) ---------- */
+.landing{min-height:100vh;min-height:100dvh;display:flex;align-items:center;justify-content:center;
+  padding:32px 20px calc(env(safe-area-inset-bottom) + 32px);background:var(--bg)}
+.landing-inner{max-width:440px;width:100%;text-align:center}
+.landing-mark{font-family:"Courier New",ui-monospace,monospace;font-weight:800;font-size:52px;
+  letter-spacing:-1px;color:var(--ink)}
+.landing-tag{color:var(--muted);font-size:17px;line-height:1.5;margin:14px 4px 28px}
+.landing-card{background:var(--card);border-radius:18px;padding:22px 20px;text-align:left;box-shadow:0 2px 12px #0001}
+.landing-card h2{margin:0 0 16px;font-size:19px;font-weight:800;color:var(--ink);text-align:center}
+.landing-steps{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:13px}
+.landing-steps li{font-size:15.5px;line-height:1.45;color:var(--ink)}
+.landing-steps .ios-share{vertical-align:-4px;margin:0 1px;color:var(--radio)}
+.landing-note{color:var(--muted);font-size:14px;line-height:1.5;margin:22px 6px 0}
+.landing-android{color:var(--muted-2);font-size:13px;line-height:1.5;margin:12px 6px 0}
+
 /* ---------- Home wordmark ---------- */
 .wordmark-wrap{min-height:calc(100vh - var(--nav-h) - 60px);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:28px}
 .wordmark{font-family:"Courier New",ui-monospace,monospace;font-weight:800;font-size:64px;letter-spacing:-1px;color:var(--ink)}
