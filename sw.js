@@ -2,7 +2,7 @@
    NETWORK-FIRST: always try the network so updated code loads immediately when
    online; fall back to cache only when offline. This avoids "blank page after
    update" caused by a stale cache-first worker. */
-const CACHE = 'inkvoice-v12';
+const CACHE = 'inkvoice-v13';
 
 const SHELL = [
   './', './index.html', './css/styles.css', './vendor/jspdf.umd.min.js', './vendor/fonts.js',
@@ -31,6 +31,9 @@ self.addEventListener('message', (e) => { if (e.data === 'skipWaiting') self.ski
 self.addEventListener('fetch', (e) => {
   const req = e.request;
   if (req.method !== 'GET') return;
+  // Never touch cross-origin requests (e.g. the Adsterra ad script) — let them go
+  // straight to the network so third-party code runs normally and is never cached.
+  if (new URL(req.url).origin !== self.location.origin) return;
   e.respondWith(
     fetch(req)
       .then((res) => {
