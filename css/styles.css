@@ -55,6 +55,8 @@ button,input,select,textarea{font-family:inherit;font-size:16px;color:var(--ink)
 .tabbar button svg{width:27px;height:27px}
 .tabbar button.active{color:var(--ink)}
 .tabbar button.active svg{color:var(--ink)}
+/* locked until the profile is filled (Create / Invoices / Biz Card) */
+.tabbar button.disabled{opacity:.38;cursor:not-allowed}
 
 /* ---------- Home wordmark ---------- */
 .wordmark-wrap{min-height:calc(100vh - var(--nav-h) - 60px);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:28px}

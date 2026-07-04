@@ -1,5 +1,7 @@
 // ===== Inkvoice — app shell, router, bottom tab bar =====
 import { Icon } from './icons.js';
+import { getProfile } from './store.js';
+import { toast } from './util.js';
 import * as Home from './views/dashboard.js';
 import * as Create from './views/create.js';
 import * as List from './views/list.js';
@@ -7,7 +9,25 @@ import * as View from './views/view.js';
 import * as Profile from './views/profile.js';
 import * as Cards from './views/cards.js';
 
-const state = { route:'/' };
+const state = { route:'/', key:'' };
+
+// Create / Invoices / Quotations / Biz Card (and the PDF viewer) are locked until the
+// profile has the essentials — matches the real Inkvoice: business OR owner name + a
+// valid email. Profile stays open so the user can fill it in.
+const GATED = new Set(['/create', '/invoices', '/quotations', '/cards']);
+const isGatedPath = (path) => GATED.has(path) || path.startsWith('/view/');
+export function isProfileValid(){
+  const p = getProfile();
+  const nameOk = (p.businessName||'').trim() || (p.ownerName||'').trim();
+  const email = (p.email||'').trim();
+  const emailOk = email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  return !!(nameOk && emailOk);
+}
+const PROFILE_MSG = 'Please fill profile data to create invoices/quotations';
+// Tapping a locked tab: explain, don't navigate (like the Android snackbar).
+window.tabBlocked = () => toast(PROFILE_MSG);
+// Re-render just the tab bar (e.g. after Save Profile) so gated tabs unlock in place.
+window.refreshTabs = () => { const n = document.querySelector('.tabbar'); if(n) n.outerHTML = tabbar(state.key); };
 
 export function navigate(path){
   state.route = path;
@@ -32,20 +52,31 @@ const ROUTES = [
 ];
 
 function tabbar(active){
-  const tab = (key, path, icon, label) =>
-    `<button class="${active===key?'active':''}" onclick="nav('${path}')">${icon}<span>${label}</span></button>`;
+  const valid = isProfileValid();
+  const tab = (key, path, icon, label, gated) => {
+    const locked = gated && !valid;
+    const cls = [active===key?'active':'', locked?'disabled':''].filter(Boolean).join(' ');
+    const onclick = locked ? 'tabBlocked()' : `nav('${path}')`;
+    return `<button class="${cls}" onclick="${onclick}"${locked?' aria-disabled="true"':''}>${icon}<span>${label}</span></button>`;
+  };
   return `
     <nav class="tabbar">
-      ${tab('profile','/profile',Icon.user,'Profile')}
-      ${tab('create','/create',Icon.plusCircle,'Create')}
-      ${tab('invoices','/invoices',Icon.list,'Invoices')}
-      ${tab('cards','/cards',Icon.bizcard,'Biz Card')}
+      ${tab('profile','/profile',Icon.user,'Profile',false)}
+      ${tab('create','/create',Icon.plusCircle,'Create',true)}
+      ${tab('invoices','/invoices',Icon.list,'Invoices',true)}
+      ${tab('cards','/cards',Icon.bizcard,'Biz Card',true)}
     </nav>`;
 }
 
 function render(){
-  const { path, params } = parse(state.route);
+  let { path, params } = parse(state.route);
+  // Safety net: a gated route reached while the profile is incomplete → send to Profile.
+  if(isGatedPath(path) && !isProfileValid()){
+    toast(PROFILE_MSG);
+    state.route = '/profile'; path = '/profile'; params = new URLSearchParams();
+  }
   const match = ROUTES.find(r => r.test(path)) || ROUTES[0];
+  state.key = match.key;
   const ctx = { params, navigate, arg:match.arg, path };
   const app = document.getElementById('app');
   // iPhone has no OS back button — a small top-left chevron returns to Home.

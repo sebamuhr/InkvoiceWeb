@@ -1,4 +1,4 @@
-import { getProfile, saveProfile, CURRENCIES, LANGUAGES, PDF_STYLES, TAX_COLORS } from '../store.js';
+import { getProfile, saveProfile, CURRENCIES, LANGUAGES, TAX_COLORS } from '../store.js';
 import { esc, toast } from '../util.js';
 import { Icon } from '../icons.js';
 import { mfield, mselect } from '../ui.js';
@@ -51,8 +51,6 @@ export function html(){
       <div>Start from invoice N°<div class="startno-warn">This can't be undone.</div></div>
       <input id="startFromInvoiceNumber" class="ctrl startno-input" type="number" value="${p.startFromInvoiceNumber}">
     </div>
-
-    ${mselect({id:'preferredPdfStyle',label:'Default PDF Style',options:PDF_STYLES,value:p.preferredPdfStyle})}
 
     <div class="two" style="margin-top:16px">
       <button class="btn" id="backup">Backup Now</button>
@@ -113,7 +111,7 @@ export function mount(){
       businessName:g('businessName').trim(), ownerName:g('ownerName').trim(), email:g('email').trim(),
       website:g('website').trim(), phone:g('phone').trim(), address:g('address'),
       currency:g('currency'), defaultTaxPercentage:parseFloat(g('defaultTaxPercentage'))||0,
-      startFromInvoiceNumber:parseInt(g('startFromInvoiceNumber'),10)||1, preferredPdfStyle:g('preferredPdfStyle'),
+      startFromInvoiceNumber:parseInt(g('startFromInvoiceNumber'),10)||1,
       appLanguage:g('appLanguage'), invoiceLanguage:g('invoiceLanguage'),
       bankingInformation:g('bankingInformation'), notes:g('notes'),
       advancedSharingOptions:$('advancedSharingOptions').checked,
@@ -123,5 +121,7 @@ export function mount(){
     if(!p.businessName){ toast('Business name is required'); return; }
     saveProfile(p);
     toast('Profile saved');
+    // Unlock Create/Invoices/Biz Card in place now that the profile may be valid.
+    if(window.refreshTabs) window.refreshTabs();
   });
 }
