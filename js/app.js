@@ -112,7 +112,9 @@ if('serviceWorker' in navigator){
     if(!window.__swReloaded){ window.__swReloaded = true; location.reload(); }
   });
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('sw.js')
+    // updateViaCache:'none' → the browser never serves sw.js from its HTTP cache, so a
+    // new deploy's worker is detected on the very next load (not up to 10 min later).
+    navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' })
       .then(reg => reg.update())
       .catch(()=>{});
   });

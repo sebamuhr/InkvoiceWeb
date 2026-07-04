@@ -1,8 +1,9 @@
 /* Inkvoice service worker.
-   NETWORK-FIRST: always try the network so updated code loads immediately when
-   online; fall back to cache only when offline. This avoids "blank page after
-   update" caused by a stale cache-first worker. */
-const CACHE = 'inkvoice-v14';
+   NETWORK-FIRST + cache-BYPASS: every online fetch uses {cache:'reload'} so the
+   browser's HTTP cache (GitHub Pages sends max-age=600) can never serve stale JS.
+   The app always gets the freshest code when online; cache is only the offline
+   fallback. This fixes "refresh shows no change for ~10 minutes after a deploy". */
+const CACHE = 'inkvoice-v15';
 
 const SHELL = [
   './', './index.html', './css/styles.css', './vendor/jspdf.umd.min.js', './vendor/fonts.js',
@@ -15,7 +16,12 @@ const SHELL = [
 ];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  // Precache with {cache:'reload'} so a new worker never stores stale (HTTP-cached) files.
+  e.waitUntil(
+    caches.open(CACHE)
+      .then((c) => c.addAll(SHELL.map((u) => new Request(u, { cache: 'reload' }))))
+      .then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener('activate', (e) => {
@@ -35,7 +41,8 @@ self.addEventListener('fetch', (e) => {
   // straight to the network so third-party code runs normally and is never cached.
   if (new URL(req.url).origin !== self.location.origin) return;
   e.respondWith(
-    fetch(req)
+    // {cache:'reload'} bypasses the browser HTTP cache so we always hit the network.
+    fetch(req, { cache: 'reload' })
       .then((res) => {
         // refresh cache with the latest successful same-origin response
         if (res && res.ok && res.type === 'basic') {
