@@ -204,9 +204,16 @@ chevron clears content.
   one page don't collide over Adsterra's global `atOptions`. Shows after every 5th document,
   online only. Verified 2 isolated iframes on a 12-doc list, no errors.
 - `sw.js`: now **bypasses cross-origin requests** so the ad script runs untouched / uncached.
-- **TODO:** (1) user confirms "Enforce HTTPS" is on; (2) add `ads.txt` at site root — need the
-  full block from Adsterra (Publisher ID `30100194`); (3) ads only fill once Adsterra approves
-  the site — empty slot until then is normal. SW → v13.
+- **DONE + verified live:** Adsterra website `app.elorate.net` (site ID `5892619`) added; ad
+  unit `30100194` "Banner 320x50" is **Active** (approved). On `https://app.elorate.net/invoices`
+  with 12 seeded docs, **both banners fired their `invoke.js`** to highperformanceformat.com — the
+  chain works. (First GitHub Pages deploy hit a transient "try again later"; an empty re-push
+  fixed it → v13 live.)
+- **Notes:** `30100194` is the *ad unit* ID, not an ads.txt publisher line — **ads.txt skipped**
+  (optional for Adsterra; can add later for a small revenue bump, get the block from the Adsterra
+  Telegram manager). Real ad *fill* depends on Adsterra serving to real user traffic; a headless/
+  datacenter IP may show blank. To SEE an ad in-app you need **6+ documents** (first ad after #5).
+  User still to tick "Enforce HTTPS" in repo Settings → Pages (cert is ready).
 
 ### 2026-07-04 — Custom domain app.elorate.net live (ads phase 1)
 - Added DNS record at the domain's DNS host (Canva/Tucows, nameservers `systemdns.com`):
