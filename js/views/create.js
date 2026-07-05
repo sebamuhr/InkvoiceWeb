@@ -14,7 +14,9 @@ function blankDraft(type='invoice'){
     clientName:'', clientEmail:'', clientAddress:'', clientVatId:'', clientPhone:'',
     creationDateMillis:todayMs(), dueDateMillis:null,
     items:[], taxRatePercentage:p.defaultTaxPercentage||0, discountPercent:0, advancePayment:0,
-    status:'Pending', notes:'', footerNotes:p.footerNotes||'',
+    // Snapshot the profile Notes into the invoice at creation (matches Android:
+    // profile.notes → invoice.notes, printed centered at the bottom of the PDF).
+    status:'Pending', notes:p.notes||'', footerNotes:p.footerNotes||'',
     pdfStyle:p.preferredPdfStyle||'Professional',
     b2g:false, buyerReference:'', departmentArea:'',
   };
