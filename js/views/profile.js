@@ -53,6 +53,9 @@ export function html(){
       <input id="startFromInvoiceNumber" class="ctrl startno-input" type="number" value="${p.startFromInvoiceNumber}">
     </div>
 
+    <button class="btn block" id="sync-connect-btn" style="margin-top:16px">${Icon.link || ''} Connect a device</button>
+    <div class="section-sub" style="margin:6px 2px 0">Use your laptop or tablet to create invoices — it mirrors this phone over the same Wi-Fi.</div>
+
     <div class="two" style="margin-top:16px">
       <button class="btn" id="backup">Backup Now</button>
       <button class="btn" id="save-profile">Save Profile</button>
@@ -97,6 +100,11 @@ export function mount(){
   }
   $('tax-add').addEventListener('click', () => { if(taxNumbers.length>=4) return; taxNumbers.push({label:'',number:'',color:TAX_COLORS[taxNumbers.length]}); refreshTax(); });
   wireTax();
+
+  $('sync-connect-btn')?.addEventListener('click', () => {
+    if(window.__syncConnect) window.__syncConnect();
+    else toast('Device connect is available in the installed phone app');
+  });
 
   $('backup').addEventListener('click', () => {
     const data = { profile:localStorage.getItem('inkvoice_profile'), clients:localStorage.getItem('inkvoice_clients'), invoices:localStorage.getItem('inkvoice_invoices') };

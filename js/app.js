@@ -10,6 +10,7 @@ import * as Profile from './views/profile.js';
 import * as Cards from './views/cards.js';
 import * as Landing from './views/landing.js';
 import { initSyncBridge } from './syncbridge.js';
+import * as SyncUI from './syncui.js';
 
 const state = { route:'/', key:'' };
 
@@ -143,24 +144,17 @@ const STANDALONE = window.matchMedia('(display-mode: standalone)').matches
 const IS_PHONE = (navigator.maxTouchPoints > 0 || window.matchMedia('(pointer: coarse)').matches)
   && Math.min(window.screen.width, window.screen.height) <= 500;
 
-function bigScreenNotice(){
-  return `<div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:32px;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;color:#1b2233;background:#F0F2F5">
-    <div style="font-size:46px;margin-bottom:8px">📱</div>
-    <div style="font-weight:800;font-size:28px;letter-spacing:-.02em">Inkvoice<span style="color:#f4a52b">.</span></div>
-    <h1 style="font-size:22px;margin:18px 0 10px;font-weight:800">Inkvoice is a phone app</h1>
-    <p style="max-width:430px;color:#4a5266;font-size:16px;line-height:1.6;margin:0">
-      Your invoices stay on your device, and there's no desktop sync yet — so Inkvoice runs on
-      phones only. Open <b>inkvoiceapp.com</b> on your phone to install it.
-    </p>
-  </div>`;
-}
-
 const appEl = document.getElementById('app');
 if(FORCE || (STANDALONE && IS_PHONE)){
+  // Phone (the boss) — runs the full app and can host a device connection.
+  SyncUI.initSyncUI({ role:'phone' });
   render();
 } else if(!IS_PHONE){
-  // Desktop or tablet (installed or not) → don't run the app; explain why.
-  appEl.innerHTML = bigScreenNotice();
+  // Desktop or tablet: not an independent copy — it connects to the phone over
+  // the same Wi-Fi and mirrors it live. Show the connect screen; boot the full
+  // app once paired, and return here if the link drops.
+  SyncUI.initSyncUI({ role:'guest', bootApp:render, appEl });
+  SyncUI.mountConnectScreen(appEl);
 } else {
   // Phone browser, not yet installed → show the Add-to-Home-Screen page.
   appEl.innerHTML = Landing.html();

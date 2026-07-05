@@ -40,7 +40,7 @@
 - **Service worker is network-first** (`sw.js`): it always tries the network first so new
   code loads immediately when online, and falls back to cache when offline. On any file
   change bump the cache constant `const CACHE = 'inkvoice-vNN'` so old caches are purged.
-  **Current: `inkvoice-v17`.**
+  **Current: `inkvoice-v19`.**
 - If you add/remove a file, also update the `SHELL` array in `sw.js`.
 
 ---
@@ -246,9 +246,10 @@ Decisions locked with the user:
   view re-renders on incoming ops; `SYNC_URL` const → `https://inkvoiceapp.com/signal.php`;
   bump SW + add files to SHELL. `sw.js` already bypasses cross-origin so signal.php is uncached.
 - **Build in 3 phases:** (1) ✅ **DONE** signaling + raw data-channel connect + Accept prompt;
-  (2) ✅ **DONE** full mirror + live deltas + store event bus; (3) **NEXT** UX polish (laptop
-  connect screen replacing the desktop dead-end, phone "Connect a device" modal,
-  status/reconnect states, auto-reconnect token) + manual 2-device checklist.
+  (2) ✅ **DONE** full mirror + live deltas + store event bus; (3) ✅ **CORE DONE** laptop
+  connect screen (replaces the desktop dead-end), phone "Connect a device" modal + Accept
+  gate, disconnect→reconnect. **Still TODO in 3:** auto-reconnect token (skip re-typing) +
+  the manual 2-device WiFi checklist for the user.
 - **Phase 1 status (2026-07-05):** `signal.php` (repo root; deploy = manual upload to
   Hostinger `public_html/` → served at `https://inkvoiceapp.com/signal.php`, CROSS-origin from
   the app at app.inkvoiceapp.com, hence CORS in the file) + `js/sync.js` (WebRTC transport,
@@ -276,8 +277,22 @@ Decisions locked with the user:
   in SHELL). **Verified** (Playwright 2-context, real WebRTC, mock signaler): snapshot mirror
   (name/counter/invoices/card), live new-invoice both directions, no echo loop (both converge
   to 3), delete + profile propagation, and a 300KB chunked logo snapshot arriving byte-intact.
-  Real app boots clean with the new imports. **Phase 3 (UI to actually trigger pairing) is the
-  only thing left before it's user-usable** — today nothing calls host()/join() outside tests.
+  Real app boots clean with the new imports.
+- **Phase 3 status (2026-07-05):** the pairing UI — now user-usable. `js/syncui.js`:
+  `openHostModal()` (phone "Connect a device" modal → code → Accept/Reject → Connected/
+  Disconnect), `mountConnectScreen()` (laptop/tablet full-page 6-digit entry; boots the app
+  only after the snapshot arrives so it opens populated, not gated), `initSyncUI({role})`
+  (phone sets `window.__syncConnect`; guest re-shows the connect screen if the link drops).
+  `app.js` boot: phone (FORCE || standalone+phone) → `initSyncUI('phone')` + render; desktop/
+  tablet (`!IS_PHONE`) → `initSyncUI('guest',{bootApp:render})` + `mountConnectScreen` (the OLD
+  `bigScreenNotice` dead-end is GONE). `profile.js` has a "Connect a device" button →
+  `window.__syncConnect()`. CSS `.connect-screen`/`.sync-code`/`.cc-input` added. **SW → v19**
+  (+syncui.js). **Verified** (Playwright 2-context, real app UI, mock signaler): phone code
+  modal, laptop connect screen, Accept prompt, laptop boots into mirrored data (sees N°003/
+  Romeo), live phone-created invoice shows on laptop, disconnect returns laptop to the connect
+  screen. Screens screenshotted — look clean/on-brand. **Test gotcha:** set
+  `window.__swReloaded=true` via addInitScript or app.js's one-time SW `controllerchange`
+  reload wipes body-level modals mid-test.
 - **Numbering worry solved:** laptop reads the phone's synced counters live, so `peekNextNumber`
   is always correct. (Rare simultaneous-create race → later hardening: phone as sole number
   issuer.) **Can't fully test real-LAN WebRTC headlessly** → user does a 2-device WiFi check.
