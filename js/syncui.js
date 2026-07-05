@@ -13,6 +13,16 @@ import { toast } from './util.js';
 const DEVICE_KEY = 'inkvoice_device_id';   // phone: our stable secret room key
 const PAIR_KEY   = 'inkvoice_pair_key';    // laptop: the phone's device key we paired with
 const HAS_PAIRED = 'inkvoice_has_paired';  // phone: have we ever completed a pairing?
+const MODE_KEY   = 'inkvoice_mode';        // phone: 'hub' (locked, laptop is active) | 'solo' (this phone is active)
+
+// Mutual exclusion — only ONE device may be used at a time (else two people edit
+// the same books and numbering collides). In 'hub' mode the phone is the data host
+// but its own screen is locked ("in use on your laptop") and it advertises for the
+// laptop; in 'solo' mode the phone is the active editor and does NOT advertise, so
+// the laptop stays disconnected until the phone hands control back.
+const getMode = () => localStorage.getItem(MODE_KEY) || 'solo';
+const setMode = m => localStorage.setItem(MODE_KEY, m);
+let soloNote = '';                          // guest: reason shown on the reconnect screen
 
 let role = 'phone';
 let bootApp = () => {};
@@ -67,7 +77,7 @@ export async function openHostModal() {
     if (Sync.state !== 'connected') Sync.disconnect();
     removeEl('sync-modal');
     manualMode = false;
-    setTimeout(advertiseTick, 800);            // resume background reconnect advertising
+    setTimeout(() => { advertiseTick(); renderHub(); }, 800);   // resume hub advertising / lock screen
   };
   hostBody('starting');
   try {
@@ -95,39 +105,60 @@ function hostBody(kind, data = {}) {
         <button class="btn" id="sync-accept">Accept</button></div>`;
     $('sync-accept').onclick = () => Sync.accept();
     $('sync-reject').onclick = () => Sync.reject();
-  } else if (kind === 'connected') {
-    body.innerHTML = `
-      <div class="sync-note">✓ <b>Connected.</b> Your other device now mirrors this phone over Wi-Fi. Nothing leaves your devices.</div>
-      <div class="sync-note muted" style="margin-top:8px">Leaving Inkvoice or locking the phone disconnects it — it reconnects automatically when you come back.</div>
-      <button class="btn block" id="sync-hub-btn" style="margin-top:14px">🌙 Dim &amp; keep awake (hub)</button>
-      <button class="btn ghost block" id="sync-disc" style="margin-top:10px">Disconnect</button>`;
-    $('sync-hub-btn').onclick = showHubScreen;
-    $('sync-disc').onclick = () => { Sync.disconnect(); removeEl('sync-modal'); manualMode = false; };
   } else if (kind === 'error') {
     body.innerHTML = `<div class="sync-note">${data.msg || 'Something went wrong.'}</div>`;
   }
 }
 
-// The dark low-power "hub" screen: the web can't dim the backlight, but a mostly
-// black page looks dim and genuinely saves power on OLED. Wake lock (held while
-// connected) keeps the screen awake. Tap anywhere to return to the app.
-function showHubScreen() {
-  removeEl('sync-modal'); removeEl('sync-hub');
-  const hub = elFrom(`
-    <div id="sync-hub" class="sync-hub">
-      <div class="hub-dot"></div>
-      <div class="hub-title">Connected</div>
-      <div class="hub-sub">Keep this screen on. Your other device is mirroring this phone over Wi-Fi.</div>
-      <div class="hub-warn">Leaving Inkvoice or locking the phone will disconnect it (it reconnects on its own when you return).</div>
-      <div class="hub-exit">Tap anywhere to use Inkvoice</div>
-    </div>`);
-  hub.addEventListener('click', () => removeEl('sync-hub'));
-  document.body.appendChild(hub);
+// The "hub" lock screen. While the phone is in HUB mode the laptop is the active
+// device, so the phone locks itself behind this screen (a mostly-black page also
+// looks dim and saves OLED power). It shows whether the laptop is connected or
+// still linking, and the ONE way off it: "Use this phone instead" (which hands
+// control back to the phone and disconnects the laptop). No tap-to-dismiss —
+// dismissing would let both devices be edited at once.
+function renderHub() {
+  if (role !== 'phone') return;
+  if (getMode() !== 'hub') { removeEl('sync-hub'); return; }
+  const connected = Sync.state === 'connected';
+  let hub = $('sync-hub');
+  if (!hub) { hub = elFrom(`<div id="sync-hub" class="sync-hub"></div>`); document.body.appendChild(hub); }
+  hub.innerHTML = `
+    <div class="hub-dot${connected ? '' : ' waiting'}"></div>
+    <div class="hub-title">${connected ? 'In use on your laptop' : 'Waiting for your laptop…'}</div>
+    <div class="hub-sub">${connected
+      ? 'This phone is the hub. Work on your laptop — keep this open on the same Wi-Fi.'
+      : 'Open Inkvoice on your laptop (same Wi-Fi). It reconnects on its own — no code needed.'}</div>
+    <div class="hub-warn">Use <b>either</b> your phone or your laptop — never both at once.</div>
+    <button class="btn block" id="hub-reclaim" style="max-width:320px;margin-top:18px">Use this phone instead</button>
+    <button class="btn ghost block" id="hub-newdev" style="max-width:320px;margin-top:10px">Pair a different device</button>`;
+  $('hub-reclaim').onclick = reclaimPhone;
+  $('hub-newdev').onclick = () => { removeEl('sync-hub'); openHostModal(); };
+}
+
+// Hand control to THIS phone: stop being a hub, drop the laptop, become the active
+// editor. The phone stops advertising so the laptop can't silently grab it back.
+function reclaimPhone() {
+  setMode('solo');
+  advertising = false;
+  try { Sync.send({ t: 'solo' }); } catch {}   // tell the laptop why it's about to drop
+  Sync.disconnect();
+  removeEl('sync-hub'); removeEl('sync-modal');
+  toast('Using this phone — laptop disconnected');
+}
+
+// Hand control back to the laptop: become a hub again and start advertising; the
+// paired laptop (which remembers the key) reconnects automatically, no code.
+function resumeLaptop() {
+  setMode('hub');
+  advertising = false;
+  manualMode = false;
+  renderHub();
+  setTimeout(advertiseTick, 100);
 }
 
 // ---------------- PHONE: background reconnect advertising ----------------
 function canAdvertise() {
-  return role === 'phone' && localStorage.getItem(HAS_PAIRED) && !manualMode
+  return role === 'phone' && getMode() === 'hub' && !manualMode
     && document.visibilityState === 'visible'
     && ['idle', 'closed', 'error'].includes(Sync.state);
 }
@@ -169,7 +200,7 @@ export function mountConnectScreen(container, note = '') {
     const c = code.value.replace(/\D/g, '');
     if (c.length !== 6) { status.textContent = 'Enter the 6-digit code from your phone.'; return; }
     status.textContent = 'Connecting…'; go.disabled = true;
-    const off = Sync.onMessage(m => { if (m.t === 'snapshot') { off(); booted = true; bootApp(); } });
+    const off = Sync.onMessage(m => { if (m.t === 'snapshot') { off(); booted = true; soloNote = ''; bootApp(); } });
     const ok = await Sync.join(c);
     if (!ok) { off(); go.disabled = false; status.textContent = Sync.error || 'Could not connect.'; }
   }
@@ -190,7 +221,7 @@ export async function startGuestReconnect(container, note = '') {
   $('rc-manual').onclick = () => mountConnectScreen(container);
 
   const key = getPairKey();
-  const off = Sync.onMessage(m => { if (m.t === 'snapshot' && token === reconnectToken) { off(); booted = true; bootApp(); } });
+  const off = Sync.onMessage(m => { if (m.t === 'snapshot' && token === reconnectToken) { off(); booted = true; soloNote = ''; bootApp(); } });
   while (token === reconnectToken && !booted) {
     const ok = await Sync.join(key);              // phone auto-accepts → connects with no tap
     if (ok) {
@@ -229,13 +260,16 @@ export function initSyncUI(opts) {
     // Back in the foreground → reconnect immediately.
     const reallyConnected = Sync.state === 'connected' && Sync.pc && Sync.pc.connectionState === 'connected';
     if (role === 'phone') {
-      if (reallyConnected) { acquireWake(); return; }
-      // Anything else after a resume is stale — a dead link the events missed, or a
-      // standing offer that expired while suspended. Clear it (and the advertising
-      // guard) and re-advertise from scratch so a searching device can find us.
-      advertising = false;
-      Sync.disconnect();
-      setTimeout(advertiseTick, 200);
+      if (reallyConnected) { acquireWake(); renderHub(); return; }
+      // In solo mode this phone is the active editor — leave it alone. In hub mode,
+      // anything that isn't a genuinely live link is stale (a dead link the events
+      // missed, or a standing offer that expired while suspended): clear it and the
+      // advertising guard, then re-advertise so the laptop can find us again.
+      if (getMode() === 'hub') {
+        advertising = false;
+        Sync.disconnect();
+        setTimeout(() => { advertiseTick(); renderHub(); }, 200);
+      }
       return;
     }
     // guest
@@ -245,34 +279,43 @@ export function initSyncUI(opts) {
   });
 
   if (role === 'phone') {
-    window.__syncConnect = openHostModal;
+    // "Connect a device": first time shows a code; once paired it just re-shares to
+    // the known laptop (hub mode), which reconnects automatically without a code.
+    window.__syncConnect = () => { if (localStorage.getItem(HAS_PAIRED)) resumeLaptop(); else openHostModal(); };
     Sync.onState((s, err) => {
       if ($('sync-modal')) {                    // first-pairing manual modal is open → drive its UI
         if (s === 'accept') hostBody('accept');
-        else if (s === 'connected') { hostBody('connected'); toast('Device connected'); }
         else if (s === 'error') hostBody('error', { msg: err || 'Connection error.' });
         else if (s === 'closed') hostBody('error', { msg: 'The device disconnected.' });
+        // 'connected' is handled below → we swap the modal for the hub lock screen
       }
       if (s === 'connected') {                  // any successful connection (manual or auto-reconnect)
         localStorage.setItem(HAS_PAIRED, '1');
+        setMode('hub');                         // a live laptop → this phone becomes the locked hub
         manualMode = false; advertising = false;
         Sync.send({ t: 'pairkey', key: deviceId() });   // (re)confirm our key so the guest can rejoin
-        if (!$('sync-modal')) toast('Device reconnected');
+        removeEl('sync-modal');
+        renderHub();
+        toast('Device connected');
       }
-      if (s === 'closed' || s === 'error') {    // connection ended → resume advertising for auto-reconnect
+      if (s === 'closed' || s === 'error') {    // connection ended
         advertising = false;
-        if ($('sync-hub')) { removeEl('sync-hub'); toast('Device disconnected'); }
-        if (!manualMode) setTimeout(advertiseTick, 800);
+        renderHub();                            // hub mode → show "waiting…"; solo mode → clears the screen
+        if (!manualMode && getMode() === 'hub') setTimeout(advertiseTick, 800);   // keep advertising for auto-reconnect
       }
     });
-    setTimeout(advertiseTick, 600);             // if we've paired before, start listening for a reconnect
+    setTimeout(() => { advertiseTick(); renderHub(); }, 600);   // resume hub mode on launch if that's how we left it
   } else { // guest
-    Sync.onMessage(m => { if (m.t === 'pairkey' && m.key) setPairKey(m.key); });
+    Sync.onMessage(m => {
+      if (m.t === 'pairkey' && m.key) setPairKey(m.key);
+      if (m.t === 'solo') soloNote = 'Your phone is in use right now. Use either your phone OR this computer — not both.';
+    });
     Sync.onState((s, err) => {
       if ((s === 'closed' || s === 'error') && booted) {
         booted = false;
-        if (getPairKey()) startGuestReconnect(appEl, err || 'Connection lost — reconnecting…');
-        else mountConnectScreen(appEl, err || 'Connection lost — enter the code again.');
+        const note = soloNote || err || 'Connection lost — reconnecting…';
+        if (getPairKey()) startGuestReconnect(appEl, note);
+        else mountConnectScreen(appEl, note);
       }
     });
   }

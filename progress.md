@@ -40,7 +40,7 @@
 - **Service worker is network-first** (`sw.js`): it always tries the network first so new
   code loads immediately when online, and falls back to cache when offline. On any file
   change bump the cache constant `const CACHE = 'inkvoice-vNN'` so old caches are purged.
-  **Current: `inkvoice-v27`.**
+  **Current: `inkvoice-v28`.**
 - If you add/remove a file, also update the `SHELL` array in `sw.js`.
 
 ---
@@ -390,6 +390,20 @@ Decisions locked with the user:
   as stale: resets `advertising=false`, `Sync.disconnect()`, re-advertises. **Reproduced
   headlessly** (force stale-connected + dead pc → laptop stuck → reopen phone → recovers ~1.3s);
   full suite green. **SW → v27.**
+- **Mutual exclusion — only ONE device active at a time (2026-07-05):** two devices editing the
+  same books at once collides numbering, so the phone & laptop are now mutually exclusive.
+  New persistent phone flag `inkvoice_mode` ∈ {`solo`,`hub`} (default solo). On first pairing the
+  phone flips to **hub**: it's the data host but its own screen is LOCKED behind the black hub
+  "In use on your laptop / Waiting for your laptop…" overlay (no tap-to-dismiss) — the laptop is
+  the sole editor. Button **"Use this phone instead"** (`reclaimPhone`) → sends `{t:'solo'}`,
+  disconnects the laptop, sets mode solo, unlocks the phone; in solo mode `canAdvertise` is
+  false so the laptop **cannot** silently grab it back (laptop shows "Your phone is in use…").
+  **"Connect a device"** now: first time → code modal; once paired → `resumeLaptop` (mode hub +
+  advertise, laptop auto-reconnects, no code). Also "Pair a different device" link on the hub for
+  a new device. `sync.js` unchanged. NOTE: on connect the pairing modal is REPLACED by the hub
+  screen (tests no longer click `#sync-close`). **Verified** `mutex_test` (lock after pairing →
+  reclaim drops laptop → solo blocks reconnect → resume auto-reconnects) + full suite green.
+  **SW → v28.**
 - **Numbering worry solved:** laptop reads the phone's synced counters live, so `peekNextNumber`
   is always correct. (Rare simultaneous-create race → later hardening: phone as sole number
   issuer.) **Can't fully test real-LAN WebRTC headlessly** → user does a 2-device WiFi check.
