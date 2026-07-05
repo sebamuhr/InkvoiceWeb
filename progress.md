@@ -40,7 +40,7 @@
 - **Service worker is network-first** (`sw.js`): it always tries the network first so new
   code loads immediately when online, and falls back to cache when offline. On any file
   change bump the cache constant `const CACHE = 'inkvoice-vNN'` so old caches are purged.
-  **Current: `inkvoice-v29`.**
+  **Current: `inkvoice-v30`.**
 - If you add/remove a file, also update the `SHELL` array in `sw.js`.
 
 ---
@@ -433,6 +433,20 @@ Decisions locked with the user:
   icon-192 loads, 0 pageerrors, 0 4xx). **ALWAYS build `_upload/app/` = complete tree; never a
   subset.** Icon note: an already-installed PWA caches its icon — the user must reinstall
   (remove from home screen → reopen → re-add) to pick the Inkvoice icon back up.
+- **Auto-reconnect REPLACED by an explicit "Re-Connect" button (2026-07-05):** auto-reconnect
+  was unreliable on real devices ("if i insert the code again it works but if i do nothing it
+  doesn't") so per user we dropped it entirely for a deliberate push on both ends: first time =
+  code; after that = press **Re-Connect** on the laptop → **Accept** on the phone (no code).
+  Changes in `syncui.js`: `advertiseTick` now `autoAccept:false` (phone still stands a device-key
+  offer in hub mode, but a join prompts). New `showReconnectAccept()` modal (z-500, above hub)
+  shown on phone `onState==='accept'` when not first-pairing. `startGuestReconnect` no longer
+  loops — it renders a static "🔗 Re-Connect" button screen (+ Enter-a-code / Forget / Diag);
+  `doReconnect()` does ONE `join(deviceKey)`, shows "confirm on your phone", waits ~45s for the
+  Accept+snapshot, and re-enables the button with a helpful message on failure. Guest
+  visibilitychange no longer auto-joins (just drops a dead link → button). Phone still
+  re-advertises on visible so the offer is ready. **All reconnect tests rewritten to the manual
+  flow** (press #rc-go → phone #ra-accept) — reconnect/mutex/tabswitch/stuck/deaddrop/reset +
+  sync2/3/valid/boot all green. Bundle shipped as COMPLETE app payload. **SW → v30.**
 - **Numbering worry solved:** laptop reads the phone's synced counters live, so `peekNextNumber`
   is always correct. (Rare simultaneous-create race → later hardening: phone as sole number
   issuer.) **Can't fully test real-LAN WebRTC headlessly** → user does a 2-device WiFi check.

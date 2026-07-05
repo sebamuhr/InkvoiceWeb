@@ -150,8 +150,26 @@ function reclaimPhone() {
   toast('Using this phone — laptop disconnected');
 }
 
-// Hand control back to the laptop: become a hub again and start advertising; the
-// paired laptop (which remembers the key) reconnects automatically, no code.
+// PHONE: the laptop pressed "Re-Connect" and joined our standing offer → ask the
+// user to confirm (no code — knowing the device key is the trust). Sits above the
+// hub lock screen (z-index).
+function showReconnectAccept() {
+  if ($('sync-modal') || $('sync-accept-modal')) return;
+  const el = elFrom(`
+    <div class="modal-overlay" id="sync-accept-modal" style="z-index:500"><div class="modal">
+      <h3 style="margin:0 0 10px">🔗 Reconnect your laptop?</h3>
+      <div class="sync-note">Your laptop is asking to reconnect over Wi-Fi. Only accept if it's your own device.</div>
+      <div class="two" style="margin-top:16px">
+        <button class="btn ghost" id="ra-reject">Not now</button>
+        <button class="btn" id="ra-accept">Accept</button></div>
+    </div></div>`);
+  document.body.appendChild(el);
+  $('ra-accept').onclick = () => { Sync.accept(); removeEl('sync-accept-modal'); };
+  $('ra-reject').onclick = () => { Sync.reject(); removeEl('sync-accept-modal'); };
+}
+
+// Hand control back to the laptop: become a hub again and start advertising so the
+// laptop's next "Re-Connect" can find us.
 function resumeLaptop() {
   SyncLog.add('[ui] resumeLaptop → hub mode, advertising');
   setMode('hub');
@@ -220,15 +238,16 @@ function canAdvertise() {
 async function advertiseTick() {
   if (advertising || !canAdvertise()) return;
   advertising = true;
-  // Stand a "reconnect" offer under our device key and AUTO-accept a device that
-  // knows the key — reconnection is automatic and instant, no tap required.
-  try { await Sync.host({ code: deviceId(), autoAccept: true }); } catch {}
+  // Stand a "reconnect" offer under our device key. When the laptop presses
+  // Re-Connect it joins this offer and the phone asks the user to confirm (no
+  // auto-accept — reconnection is a deliberate action on both devices).
+  try { await Sync.host({ code: deviceId(), autoAccept: false }); } catch {}
 }
 
 // ---------------- LAPTOP/TABLET: entry point ----------------
 export function mountGuestStart(container) {
   appEl = container;
-  if (getPairKey()) startGuestReconnect(container);   // been here before → silent reconnect
+  if (getPairKey()) startGuestReconnect(container);   // been here before → Re-Connect button
   else mountConnectScreen(container);                  // first time → type a code
 }
 
@@ -263,36 +282,56 @@ export function mountConnectScreen(container, note = '') {
   }
 }
 
-// Silent auto-reconnect using the stored device key.
-export async function startGuestReconnect(container, note = '') {
-  appEl = container; booted = false;
-  const token = ++reconnectToken;
+// Returning device (already paired): a deliberate "Re-Connect" button. Pressing it
+// joins the phone's standing offer and asks the user to confirm ON THE PHONE — no
+// code, but a clear push on both ends (auto-reconnect proved unreliable).
+export function startGuestReconnect(container, note = '') {
+  appEl = container; booted = false; reconnectToken++;   // cancel any in-flight attempt
   container.innerHTML = `
     <div class="connect-screen">
       <div class="cs-brand">Inkvoice<span style="color:var(--accent,#f4a52b)">.</span></div>
-      <h1>Reconnecting…</h1>
-      <p class="cs-lede">${note ? '<b>' + note + '</b><br>' : ''}Keep <b>Inkvoice open on your phone</b> (same Wi-Fi). This reconnects on its own — no code needed.</p>
-      <div id="rc-status" class="cs-status">Looking for your phone…</div>
-      <button class="btn ghost" id="rc-manual" style="max-width:320px;margin-top:20px">Enter a code instead</button>
+      <h1>Reconnect to your phone</h1>
+      <p class="cs-lede">${note ? '<b>' + note + '</b><br>' : ''}Open <b>Inkvoice on your phone</b> (same Wi-Fi), press <b>Re-Connect</b>, then <b>tap Accept on your phone</b>. No code needed.</p>
+      <button class="btn block" id="rc-go" style="max-width:320px">🔗 Re-Connect</button>
+      <div id="rc-status" class="cs-status"></div>
+      <button class="btn ghost" id="rc-manual" style="max-width:320px;margin-top:16px">Enter a code instead</button>
       <button class="btn ghost" id="rc-forget" style="max-width:320px;margin-top:10px">Forget this phone &amp; start over</button>
       ${diagLink}
     </div>`;
+  $('rc-go').onclick = doReconnect;
   $('rc-manual').onclick = () => mountConnectScreen(container);
   $('rc-forget').onclick = forgetPhone;
   wireDiag();
+}
 
+async function doReconnect() {
   const key = getPairKey();
-  const off = Sync.onMessage(m => { if (m.t === 'snapshot' && token === reconnectToken) { off(); booted = true; soloNote = ''; bootApp(); } });
-  while (token === reconnectToken && !booted) {
-    const ok = await Sync.join(key);              // phone auto-accepts → connects with no tap
-    if (ok) {
-      for (let i = 0; i < 16 && token === reconnectToken && !booted
-        && Sync.state !== 'closed' && Sync.state !== 'error'; i++) await sleep(400);
-    }
-    if (booted || token !== reconnectToken) { off(); return; }
-    await sleep(1000);                            // phone not advertising yet → retry quickly
+  if (!key) { mountConnectScreen(appEl); return; }
+  const btn = $('rc-go'), status = $('rc-status');
+  const token = ++reconnectToken; booted = false;
+  if (btn) btn.disabled = true;
+  if (status) status.textContent = 'Connecting… now tap Accept on your phone.';
+  const off = Sync.onMessage(m => {
+    if (m.t === 'snapshot' && token === reconnectToken) { off(); booted = true; soloNote = ''; bootApp(); }
+  });
+  const ok = await Sync.join(key);
+  if (!ok) {
+    off();
+    if (token !== reconnectToken) return;
+    if (btn) btn.disabled = false;
+    if (status) status.textContent = Sync.error === 'No device is offering that code'
+      ? 'Couldn’t reach your phone. Open Inkvoice on it (same Wi-Fi), then press Re-Connect again.'
+      : (Sync.error || 'Could not connect. Try again.');
+    return;
   }
-  off();
+  // Joined — wait for the phone's Accept + first snapshot (up to ~45s).
+  for (let i = 0; i < 90 && token === reconnectToken && !booted
+    && Sync.state !== 'closed' && Sync.state !== 'error'; i++) await sleep(500);
+  if (!booted && token === reconnectToken) {
+    off();
+    if (btn) btn.disabled = false;
+    if (status) status.textContent = 'Not confirmed on your phone. Press Re-Connect and tap Accept.';
+  }
 }
 
 // ---------------- global wiring ----------------
@@ -335,8 +374,8 @@ export function initSyncUI(opts) {
     }
     // guest
     if (reallyConnected) { acquireWake(); }
-    else if (booted) { Sync.disconnect(); }                       // was live but the tab got killed → drop → guest handler rejoins
-    else if (getPairKey()) { startGuestReconnect(appEl); }        // kick an immediate reconnect attempt now
+    else if (booted) { Sync.disconnect(); }                       // was live but the tab got killed → drop → shows the Re-Connect button
+    // otherwise we're already on the Re-Connect screen; the user presses the button when ready.
   });
 
   if (role === 'phone') {
@@ -352,20 +391,23 @@ export function initSyncUI(opts) {
         else if (s === 'error') hostBody('error', { msg: err || 'Connection error.' });
         else if (s === 'closed') hostBody('error', { msg: 'The device disconnected.' });
         // 'connected' is handled below → we swap the modal for the hub lock screen
+      } else if (s === 'accept') {
+        showReconnectAccept();                  // laptop pressed Re-Connect → confirm on the phone
       }
-      if (s === 'connected') {                  // any successful connection (manual or auto-reconnect)
+      if (s === 'connected') {                  // any successful connection (first pairing or reconnect)
         localStorage.setItem(HAS_PAIRED, '1');
         setMode('hub');                         // a live laptop → this phone becomes the locked hub
         manualMode = false; advertising = false;
         Sync.send({ t: 'pairkey', key: deviceId() });   // (re)confirm our key so the guest can rejoin
-        removeEl('sync-modal');
+        removeEl('sync-modal'); removeEl('sync-accept-modal');
         renderHub();
         toast('Device connected');
       }
       if (s === 'closed' || s === 'error') {    // connection ended
         advertising = false;
+        removeEl('sync-accept-modal');
         renderHub();                            // hub mode → show "waiting…"; solo mode → clears the screen
-        if (!manualMode && getMode() === 'hub') setTimeout(advertiseTick, 800);   // keep advertising for auto-reconnect
+        if (!manualMode && getMode() === 'hub') setTimeout(advertiseTick, 800);   // re-advertise so the next Re-Connect finds us
       }
     });
     setTimeout(() => { advertiseTick(); renderHub(); }, 600);   // resume hub mode on launch if that's how we left it
