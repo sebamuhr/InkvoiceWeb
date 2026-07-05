@@ -40,7 +40,7 @@
 - **Service worker is network-first** (`sw.js`): it always tries the network first so new
   code loads immediately when online, and falls back to cache when offline. On any file
   change bump the cache constant `const CACHE = 'inkvoice-vNN'` so old caches are purged.
-  **Current: `inkvoice-v32`.** There is ALSO `export const APP_VERSION` in `js/sync.js` — keep it
+  **Current: `inkvoice-v33`.** There is ALSO `export const APP_VERSION` in `js/sync.js` — keep it
   in sync with the SW number; it's shown on-screen (connect/reconnect/hub/Profile diag link) so a
   deploy can be verified at a glance ("Inkvoice vNN"). If the on-screen version is stale, it's a
   deploy/SW-cache problem, not a code problem.
@@ -475,6 +475,24 @@ Decisions locked with the user:
   with a "Reconnect your laptop / waiting…" screen + a "Pair a NEW device (show a code)" link);
   only first pairing shows a code. New tests: `poll_test` (press Re-Connect while phone asleep →
   connects when it wakes) + `nocode` check. Full suite (12) green. **SW → v32 / APP_VERSION v32.**
+- **Visible phone Reconnect button + role-detection fix (2026-07-05):** user screenshots (BOTH
+  from the laptop) showed reconnect failing with nothing happening on the phone. Two things:
+  (1) **Role detection** used `window.screen.width <= 500`, but many phones report screen.width in
+  PHYSICAL px (e.g. 1080) → a real phone could be misclassified as a laptop and boot as a guest
+  (no host at all). Switched to VIEWPORT px (`innerWidth/innerHeight <= 560`) in `js/app.js`, and
+  added a manual override (`inkvoice_force_phone` + a "📱 This device IS my phone" link on the
+  guest screens → `role_test`). (2) **The phone now shows a big visible "🔗 Reconnect my laptop"
+  button** whenever paired + not connected (`renderPhoneReconnectBtn`, fixed bottom, z-350) — the
+  thing the user kept asking for. Tapping it → `openReconnectHost` (device-key host) with
+  **autoAccept:true**, and background `advertiseTick` is autoAccept:true again — so the laptop's
+  polling Re-Connect links up with NO extra confirm tap (the phone-button tap / laptop press are
+  the consent). Removed the separate `showReconnectAccept` prompt trigger. New tests
+  `phonebtn_test` + updated all reconnect tests (no #ra-accept). Full suite (13) green.
+  **SW → v33 / APP_VERSION v33.**
+  - ⚠️ **GitHub Pages deploy is failing on every push** (emails to the user): Pages serves the
+    now-OBSOLETE `app.elorate.net` (see `CNAME`); the real app is on Hostinger
+    (`app.inkvoiceapp.com`). Build succeeds, deploy fails (GitHub-side/custom-domain). Fix is in
+    GitHub repo Settings → Pages → Source: None (can't be done from the repo). Not a code bug.
 - **Numbering worry solved:** laptop reads the phone's synced counters live, so `peekNextNumber`
   is always correct. (Rare simultaneous-create race → later hardening: phone as sole number
   issuer.) **Can't fully test real-LAN WebRTC headlessly** → user does a 2-device WiFi check.

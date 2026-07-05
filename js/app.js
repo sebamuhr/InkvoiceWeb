@@ -139,13 +139,20 @@ if('serviceWorker' in navigator){
 // screen. Big screens get a "use your phone" notice; a phone browser gets the install page.
 // `?app` forces the app in any browser, for previewing/screenshots.
 const FORCE = new URLSearchParams(location.search).has('app');
+// Manual override: if the user tapped "This is my phone" we always run as the host.
+const FORCE_PHONE = localStorage.getItem('inkvoice_force_phone') === '1';
 const STANDALONE = window.matchMedia('(display-mode: standalone)').matches
   || window.navigator.standalone === true;
+// Phone detection: coarse pointer + a small VIEWPORT. Use innerWidth/innerHeight
+// (CSS pixels) — NOT screen.width, which many phones report in physical pixels
+// (e.g. 1080), which wrongly classified real phones as "not a phone" and booted
+// them as a guest so nothing could ever host/connect.
+const vmin = Math.min(window.innerWidth || 9999, window.innerHeight || 9999);
 const IS_PHONE = (navigator.maxTouchPoints > 0 || window.matchMedia('(pointer: coarse)').matches)
-  && Math.min(window.screen.width, window.screen.height) <= 500;
+  && vmin <= 560;
 
 const appEl = document.getElementById('app');
-if(FORCE || (STANDALONE && IS_PHONE)){
+if(FORCE || FORCE_PHONE || (STANDALONE && IS_PHONE)){
   // Phone (the boss) — runs the full app and can host a device connection.
   SyncUI.initSyncUI({ role:'phone' });
   render();
