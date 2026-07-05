@@ -40,7 +40,7 @@
 - **Service worker is network-first** (`sw.js`): it always tries the network first so new
   code loads immediately when online, and falls back to cache when offline. On any file
   change bump the cache constant `const CACHE = 'inkvoice-vNN'` so old caches are purged.
-  **Current: `inkvoice-v23`.**
+  **Current: `inkvoice-v24`.**
 - If you add/remove a file, also update the `SHELL` array in `sw.js`.
 
 ---
@@ -336,6 +336,16 @@ Decisions locked with the user:
   to the foreground **immediately re-advertises** (`advertiseTick`) so a waiting laptop
   reconnects in seconds; (3) phone "connected" panel now hints "keep Inkvoice open". **SW → v23.**
   Verified no regressions (reconnect + boot). signal.php UNCHANGED this round (app bundle only).
+- **Dark "hub" screen + warnings (2026-07-05):** the web can't set screen brightness (no API)
+  and can't keep a link alive once the phone leaves Inkvoice/locks — accepted. Best-effort UX:
+  phone "connected" panel now has a **🌙 Dim & keep awake (hub)** button → `showHubScreen()` in
+  `syncui.js`: a full black overlay (`.sync-hub`, `z-index:400`, appended to body so it survives
+  app re-renders) with a pulsing dot + "Connected" + keep-on + disconnect warning, tap anywhere
+  to exit. Mostly-black = looks dim + saves OLED power; wake lock (held while connected) keeps it
+  awake. Cleared automatically on disconnect (+ toast). Laptop reconnect screen copy clarified
+  ("open Inkvoice on your phone… links back automatically, no code"). **SW → v24.** Verified:
+  reconnect regression green; hub screen screenshotted, looks right. NOTE: true always-on
+  (phone locked / app closed) still needs the native Android background service.
 - **Numbering worry solved:** laptop reads the phone's synced counters live, so `peekNextNumber`
   is always correct. (Rare simultaneous-create race → later hardening: phone as sole number
   issuer.) **Can't fully test real-LAN WebRTC headlessly** → user does a 2-device WiFi check.

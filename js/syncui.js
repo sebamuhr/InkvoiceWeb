@@ -97,13 +97,32 @@ function hostBody(kind, data = {}) {
     $('sync-reject').onclick = () => Sync.reject();
   } else if (kind === 'connected') {
     body.innerHTML = `
-      <div class="sync-note">✓ <b>Connected.</b> This device now mirrors your phone over Wi-Fi, and will reconnect on its own next time. Nothing leaves your devices.</div>
-      <div class="sync-note muted" style="margin-top:8px">Keep Inkvoice open on this phone to stay connected — it reconnects automatically when you come back.</div>
-      <button class="btn block" id="sync-disc" style="margin-top:14px">Disconnect</button>`;
+      <div class="sync-note">✓ <b>Connected.</b> Your other device now mirrors this phone over Wi-Fi. Nothing leaves your devices.</div>
+      <div class="sync-note muted" style="margin-top:8px">Leaving Inkvoice or locking the phone disconnects it — it reconnects automatically when you come back.</div>
+      <button class="btn block" id="sync-hub-btn" style="margin-top:14px">🌙 Dim &amp; keep awake (hub)</button>
+      <button class="btn ghost block" id="sync-disc" style="margin-top:10px">Disconnect</button>`;
+    $('sync-hub-btn').onclick = showHubScreen;
     $('sync-disc').onclick = () => { Sync.disconnect(); removeEl('sync-modal'); manualMode = false; };
   } else if (kind === 'error') {
     body.innerHTML = `<div class="sync-note">${data.msg || 'Something went wrong.'}</div>`;
   }
+}
+
+// The dark low-power "hub" screen: the web can't dim the backlight, but a mostly
+// black page looks dim and genuinely saves power on OLED. Wake lock (held while
+// connected) keeps the screen awake. Tap anywhere to return to the app.
+function showHubScreen() {
+  removeEl('sync-modal'); removeEl('sync-hub');
+  const hub = elFrom(`
+    <div id="sync-hub" class="sync-hub">
+      <div class="hub-dot"></div>
+      <div class="hub-title">Connected</div>
+      <div class="hub-sub">Keep this screen on. Your other device is mirroring this phone over Wi-Fi.</div>
+      <div class="hub-warn">Leaving Inkvoice or locking the phone will disconnect it (it reconnects on its own when you return).</div>
+      <div class="hub-exit">Tap anywhere to use Inkvoice</div>
+    </div>`);
+  hub.addEventListener('click', () => removeEl('sync-hub'));
+  document.body.appendChild(hub);
 }
 
 // ---------------- PHONE: background reconnect advertising ----------------
@@ -162,7 +181,7 @@ export async function startGuestReconnect(container, note = '') {
     <div class="connect-screen">
       <div class="cs-brand">Inkvoice<span style="color:var(--accent,#f4a52b)">.</span></div>
       <h1>Reconnecting to your phone…</h1>
-      <p class="cs-lede">${note ? note + '<br>' : ''}Make sure Inkvoice is open on your phone and both are on the same Wi-Fi.</p>
+      <p class="cs-lede">${note ? '<b>' + note + '</b><br>' : ''}If it doesn't reconnect, open <b>Inkvoice on your phone</b> (same Wi-Fi) and it will link back automatically — no code needed.</p>
       <div id="rc-status" class="cs-status">Looking for your phone…</div>
       <button class="btn ghost" id="rc-manual" style="max-width:320px;margin-top:20px">Enter a code instead</button>
     </div>`;
@@ -216,6 +235,7 @@ export function initSyncUI(opts) {
       }
       if (s === 'closed' || s === 'error') {    // connection ended → resume background advertising
         advertising = false;
+        if ($('sync-hub')) { removeEl('sync-hub'); toast('Device disconnected — it will reconnect automatically'); }
         if (!manualMode) setTimeout(advertiseTick, 1200);
       }
     });
