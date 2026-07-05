@@ -65,9 +65,10 @@ function card(inv){
   const advance = Number(inv.advancePayment)||0;
   const due = (Number(inv.grandTotal)||0) - advance;
   const paid = inv.status==='Paid';
+  const prefix = (inv.type==='quotation') ? 'Q' : 'N';
   return `<div class="doccard">
     <div style="min-width:0;flex:1;cursor:pointer" onclick="nav('/view/${inv.id}')">
-      <div class="no">N° ${esc(inv.invoiceNumber.replace(/^[NQ]/,''))}</div>
+      <div class="no">${prefix}° ${esc(String(inv.invoiceNumber).replace(/^[NQ]/,''))}</div>
       <div class="client">${esc(inv.clientName||'—')}</div>
       <div class="meta">Created: ${fmtISO(inv.creationDateMillis)}<br>Total: ${money2(inv.grandTotal,p.currency)}</div>
       ${advance>0?`<div class="due">Due: ${money2(due,p.currency)}</div>`:''}

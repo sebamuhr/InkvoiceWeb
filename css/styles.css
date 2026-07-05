@@ -107,7 +107,7 @@ button,input,select,textarea{font-family:inherit;font-size:16px;color:var(--ink)
 .mfield.has-prefix .ctrl{padding-left:34px}
 .mfield.has-prefix>label{left:30px}
 .counter{font-size:13px;color:var(--muted-2);margin:2px 2px 0}
-.two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
 .two>*{min-width:0}
 .mfield .ctrl{min-width:0}
 /* keep date fields inside their column and drop the double calendar glyph */

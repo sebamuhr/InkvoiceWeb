@@ -40,7 +40,7 @@
 - **Service worker is network-first** (`sw.js`): it always tries the network first so new
   code loads immediately when online, and falls back to cache when offline. On any file
   change bump the cache constant `const CACHE = 'inkvoice-vNN'` so old caches are purged.
-  **Current: `inkvoice-v16`.**
+  **Current: `inkvoice-v17`.**
 - If you add/remove a file, also update the `SHELL` array in `sw.js`.
 
 ---
@@ -202,6 +202,56 @@ chevron clears content.
 ---
 
 ## 9. Changelog (newest first)
+
+### 2026-07-05 — Small UI fixes + DEVICE SYNC design locked (big feature planned)
+Four quick fixes shipped, and the multi-device sync feature designed & approved (build next).
+- **Quotation list cards show `Q°`** (were `N°`): `js/views/list.js` `card()` now picks the
+  prefix from `inv.type`. Also fixed a latent bug in the **Create summary** (`create.js`
+  `summaryInner`) that rendered quotation numbers as `N°Q001` — now `Q°001` (prefix by type,
+  strips `^[NQ]`). PDF already did this correctly (`pdf.js`).
+- **Profile name is business OR owner** (either is enough): removed the misleading red `*`
+  from both fields, added a hint "Enter your business name, your name, or both *". Save
+  validation already used OR (`nameOk = businessName || ownerName`) — matches the tab-gate.
+- **Add New Item → Price shows a greyed `0`** that clears on focus / restores on blur, same
+  pattern as Advance/Discount (`create.js` `openItem` + focus/blur handlers on `#m-price`).
+- **Creation/Due date overlap fixed** (`css/styles.css`): `.two` grid was `1fr 1fr`
+  (= `minmax(auto,1fr)`), so the iOS date input's intrinsic min-content width blew out its
+  track and overlapped the neighbour. Now `minmax(0,1fr) minmax(0,1fr)`. iOS-only symptom,
+  can't repro in headless Chromium — verified the other three fixes via Playwright.
+- **SW → v17.**
+
+#### PLANNED (approved, not built yet): live "phone is boss" device sync
+Goal: create invoices on a laptop/tablet that mirror the phone, so numbering never collides
+and data stays local. **App is now LIVE / about to launch to many users — security matters.**
+Decisions locked with the user:
+- **Scope v1 = PWA/web only** (iPhone PWA = boss ↔ laptop/tablet browser). Native Android
+  sync is a SEPARATE later update (new Play release) — protocol is designed platform-neutral
+  (JSON over WebRTC data channel + same `signal.php`) so the native client can slot in.
+- **Pairing:** a **6-digit code** (first pairing only) + a **phone "Accept this device?"**
+  prompt before any data is sent. After first Accept, the guest stores a long device token
+  and **auto-reconnects** whenever the phone reappears — no re-typing. Code TTL ~120s,
+  one-time-use, server-side rate-limited.
+- **Why a server at all:** a typed short code needs a rendezvous; two browsers can't discover
+  each other on a LAN alone. So a **tiny `signal.php` mailbox on Hostinger** exchanges only
+  the ~1KB WebRTC handshake (SDP/ICE) — **no invoice data ever transits it**; all real data
+  is peer-to-peer over the WiFi via an `RTCDataChannel`.
+- **Boss rule / full mirror:** on connect the phone pushes a full snapshot (profile, clients,
+  invoices, card colour) — phone always wins. Then bidirectional live deltas
+  (`op` = upsert/delete per entity), last-write-wins by ts. Laptop is a live terminal
+  (connection-only, no independent data); disconnect → back to the code screen.
+- **Architecture / files:** new `signal.php` (Hostinger, CORS for both app domains),
+  `js/sync.js` (WebRTC + protocol), laptop connect screen (replaces the desktop/tablet
+  "use your phone" **dead-end** in `app.js` — that becomes the *entry point* now), phone
+  "Connect a device" modal; `store.js` gets a write-event bus + silent-apply path; current
+  view re-renders on incoming ops; `SYNC_URL` const → `https://inkvoiceapp.com/signal.php`;
+  bump SW + add files to SHELL. `sw.js` already bypasses cross-origin so signal.php is uncached.
+- **Build in 3 phases:** (1) signaling + raw data-channel connect + Accept prompt (test vs a
+  local mock signaler); (2) full mirror + live deltas + store event bus; (3) UX polish
+  (laptop connect screen, status/reconnect, auto-reconnect token) + manual 2-device checklist.
+- **Numbering worry solved:** laptop reads the phone's synced counters live, so `peekNextNumber`
+  is always correct. (Rare simultaneous-create race → later hardening: phone as sole number
+  issuer.) **Can't fully test real-LAN WebRTC headlessly** → user does a 2-device WiFi check.
+
 
 ### 2026-07-04 — Marketing site + own domain (inkvoiceapp.com) + phone-only gate
 Gave Inkvoice a professional public face on its **own domain**, and moved the app to a

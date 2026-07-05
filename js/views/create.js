@@ -123,9 +123,10 @@ function summaryInner(){
   const cur = currencySymbol(p.currency).trim();
   const m = v => cur + (Number(v)||0).toFixed(1);
   const advance = Number(draft.advancePayment)||0;
-  const num = String(draft.invoiceNumber).replace(/^N/,'');
+  const prefix = draft.type==='quotation' ? 'Q' : 'N';
+  const num = String(draft.invoiceNumber).replace(/^[NQ]/,'');
   return `
-    <div class="no">N°${esc(num)}</div>
+    <div class="no">${prefix}°${esc(num)}</div>
     <div class="tot">
       <div>Subtotal: ${m(t.subtotal)}</div>
       ${draft.taxRatePercentage>0?`<div>${draft.taxRatePercentage}%: ${m(t.taxAmount)}</div>`:''}
@@ -180,6 +181,12 @@ export function mount(ctx){
     if(draft.b2g && !p.phone) toast('Add a phone number in Profile for B2G');
   });
 
+  // Greyed "0" behaviour for the item Price field (same as Advance/Discount).
+  const priceEl = $('m-price');
+  priceEl.addEventListener('focus', () => { if(priceEl.dataset.zero){ priceEl.value=''; delete priceEl.dataset.zero; } });
+  priceEl.addEventListener('input', () => { delete priceEl.dataset.zero; });
+  priceEl.addEventListener('blur', () => { if(priceEl.value.trim()===''){ priceEl.value='0'; priceEl.dataset.zero='1'; } });
+
   renderItems();
   $('add-item').addEventListener('click', () => openItem(-1));
   $('pdf-btn').addEventListener('click', openPdf);
@@ -218,7 +225,11 @@ export function mount(ctx){
   function openItem(i){
     editingItem=i;
     const it = i>=0 ? draft.items[i] : { description:'', quantity:1, unitPrice:0 };
-    $('m-desc').value=it.description; $('m-qty').value=it.quantity; $('m-price').value=it.unitPrice;
+    $('m-desc').value=it.description; $('m-qty').value=it.quantity;
+    // Price shows a greyed "0" that clears on focus and returns on blur (matches Advance/Discount).
+    const price = $('m-price');
+    if(Number(it.unitPrice)){ price.value=it.unitPrice; delete price.dataset.zero; }
+    else { price.value='0'; price.dataset.zero='1'; }
     $('item-modal').classList.remove('hidden');
   }
   function closeItem(){ $('item-modal').classList.add('hidden'); }
