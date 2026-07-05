@@ -1,25 +1,46 @@
-// ===== Inkvoice — sync UI (pairing screens for both roles) =====
+// ===== Inkvoice — sync UI (pairing + auto-reconnect) =====
 //
-// PHONE (host): a "Connect a device" modal that shows the 6-digit code, then an
-//   Accept/Reject prompt when a device asks to join, then a Connected state.
-// LAPTOP/TABLET (guest): a full-page "enter the code" screen that replaces the
-//   old desktop dead-end. On connect it waits for the phone's snapshot, then
-//   boots the full app. If the link drops it returns here to reconnect.
+// FIRST pairing: phone shows a 6-digit code, laptop types it, phone taps Accept.
+//   On success the phone hands the laptop a persistent secret DEVICE KEY.
+// AFTER that: the laptop remembers the key and silently rejoins whenever the
+//   phone is back — no code, no prompt. The phone, once it has paired at least
+//   once, quietly re-advertises under its device key while idle and auto-accepts
+//   a peer that knows the key (knowing the long secret IS the trust).
 
 import { Sync } from './sync.js';
 import { toast } from './util.js';
 
+const DEVICE_KEY = 'inkvoice_device_id';   // phone: our stable secret room key
+const PAIR_KEY   = 'inkvoice_pair_key';    // laptop: the phone's device key we paired with
+const HAS_PAIRED = 'inkvoice_has_paired';  // phone: have we ever completed a pairing?
+
 let role = 'phone';
 let bootApp = () => {};
 let appEl = null;
-let booted = false;   // guest: is the full app currently shown?
+let booted = false;        // guest: is the full app currently shown?
+let advertising = false;   // phone: a background reconnect offer is standing
+let manualMode = false;    // phone: the manual "Connect a device" modal is active
+let reconnectToken = 0;    // guest: bumps to cancel a running reconnect loop
 
 const $ = id => document.getElementById(id);
 const elFrom = html => { const d = document.createElement('div'); d.innerHTML = html; return d.firstElementChild; };
 const removeEl = id => { const e = $(id); if (e) e.remove(); };
+const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-// ---------------- PHONE: "Connect a device" modal ----------------
+function deviceId() {
+  let id = localStorage.getItem(DEVICE_KEY);
+  if (!id) {
+    id = [...crypto.getRandomValues(new Uint8Array(16))].map(b => b.toString(16).padStart(2, '0')).join('');
+    localStorage.setItem(DEVICE_KEY, id);
+  }
+  return id;
+}
+const getPairKey = () => localStorage.getItem(PAIR_KEY) || '';
+const setPairKey = k => { if (k) localStorage.setItem(PAIR_KEY, k); };
+
+// ---------------- PHONE: "Connect a device" modal (first pairing) ----------------
 export async function openHostModal() {
+  manualMode = true; advertising = false;      // pause background reconnect while pairing a new device
   removeEl('sync-modal');
   document.body.appendChild(elFrom(`
     <div class="modal-overlay" id="sync-modal"><div class="modal">
@@ -28,12 +49,14 @@ export async function openHostModal() {
       <button class="btn ghost block" id="sync-close" style="margin-top:14px">Close</button>
     </div></div>`));
   $('sync-close').onclick = () => {
-    if (Sync.state !== 'connected') Sync.disconnect();  // cancel an in-progress pairing
+    if (Sync.state !== 'connected') Sync.disconnect();
     removeEl('sync-modal');
+    manualMode = false;
+    setTimeout(advertiseTick, 800);            // resume background reconnect advertising
   };
   hostBody('starting');
   try {
-    const code = await Sync.host();
+    const code = await Sync.host();            // random 6-digit, needs human Accept
     hostBody('waiting', { code });
   } catch {
     hostBody('error', { msg: 'Could not reach the pairing server. Check your connection and try again.' });
@@ -59,18 +82,36 @@ function hostBody(kind, data = {}) {
     $('sync-reject').onclick = () => Sync.reject();
   } else if (kind === 'connected') {
     body.innerHTML = `
-      <div class="sync-note">✓ <b>Connected.</b> Your invoices, quotations, profile and card are now shared with this device while it stays on the same Wi-Fi. Nothing leaves your devices.</div>
+      <div class="sync-note">✓ <b>Connected.</b> This device now mirrors your phone over Wi-Fi, and will reconnect on its own next time. Nothing leaves your devices.</div>
       <button class="btn block" id="sync-disc" style="margin-top:14px">Disconnect</button>`;
-    $('sync-disc').onclick = () => { Sync.disconnect(); removeEl('sync-modal'); };
+    $('sync-disc').onclick = () => { Sync.disconnect(); removeEl('sync-modal'); manualMode = false; };
   } else if (kind === 'error') {
     body.innerHTML = `<div class="sync-note">${data.msg || 'Something went wrong.'}</div>`;
   }
 }
 
-// ---------------- LAPTOP/TABLET: connect screen ----------------
-export function mountConnectScreen(container, note = '') {
+// ---------------- PHONE: background reconnect advertising ----------------
+function canAdvertise() {
+  return role === 'phone' && localStorage.getItem(HAS_PAIRED) && !manualMode
+    && ['idle', 'closed', 'error'].includes(Sync.state);
+}
+async function advertiseTick() {
+  if (advertising || !canAdvertise()) return;
+  advertising = true;
+  // Stand a "reconnect" offer under our device key; auto-accept a peer that knows it.
+  try { await Sync.host({ code: deviceId(), autoAccept: true }); } catch {}
+}
+
+// ---------------- LAPTOP/TABLET: entry point ----------------
+export function mountGuestStart(container) {
   appEl = container;
-  booted = false;
+  if (getPairKey()) startGuestReconnect(container);   // been here before → silent reconnect
+  else mountConnectScreen(container);                  // first time → type a code
+}
+
+// First-time (or "enter a code instead") manual connect screen.
+export function mountConnectScreen(container, note = '') {
+  appEl = container; booted = false; reconnectToken++;   // cancel any reconnect loop
   container.innerHTML = `
     <div class="connect-screen">
       <div class="cs-brand">Inkvoice<span style="color:var(--accent,#f4a52b)">.</span></div>
@@ -91,12 +132,38 @@ export function mountConnectScreen(container, note = '') {
     const c = code.value.replace(/\D/g, '');
     if (c.length !== 6) { status.textContent = 'Enter the 6-digit code from your phone.'; return; }
     status.textContent = 'Connecting…'; go.disabled = true;
-    // Boot the app only once the phone's full snapshot has arrived, so the
-    // laptop opens already populated (and not blocked by the empty-profile gate).
     const off = Sync.onMessage(m => { if (m.t === 'snapshot') { off(); booted = true; bootApp(); } });
     const ok = await Sync.join(c);
     if (!ok) { off(); go.disabled = false; status.textContent = Sync.error || 'Could not connect.'; }
   }
+}
+
+// Silent auto-reconnect using the stored device key.
+export async function startGuestReconnect(container, note = '') {
+  appEl = container; booted = false;
+  const token = ++reconnectToken;
+  container.innerHTML = `
+    <div class="connect-screen">
+      <div class="cs-brand">Inkvoice<span style="color:var(--accent,#f4a52b)">.</span></div>
+      <h1>Reconnecting to your phone…</h1>
+      <p class="cs-lede">${note ? note + '<br>' : ''}Make sure Inkvoice is open on your phone and both are on the same Wi-Fi.</p>
+      <div id="rc-status" class="cs-status">Looking for your phone…</div>
+      <button class="btn ghost" id="rc-manual" style="max-width:320px;margin-top:20px">Enter a code instead</button>
+    </div>`;
+  $('rc-manual').onclick = () => mountConnectScreen(container);
+
+  const key = getPairKey();
+  const off = Sync.onMessage(m => { if (m.t === 'snapshot' && token === reconnectToken) { off(); booted = true; bootApp(); } });
+  while (token === reconnectToken && !booted) {
+    const ok = await Sync.join(key);
+    if (ok) {                                   // offer found → give the connection time to settle
+      for (let i = 0; i < 16 && token === reconnectToken && !booted
+        && Sync.state !== 'closed' && Sync.state !== 'error'; i++) await sleep(500);
+    }
+    if (booted || token !== reconnectToken) { off(); return; }
+    await sleep(2500);                          // phone not advertising yet → wait and retry
+  }
+  off();
 }
 
 // ---------------- global wiring ----------------
@@ -106,19 +173,33 @@ export function initSyncUI(opts) {
   appEl = opts.appEl || null;
 
   if (role === 'phone') {
-    window.__syncConnect = openHostModal;   // Profile's "Connect a device" button calls this
+    window.__syncConnect = openHostModal;
     Sync.onState((s, err) => {
-      if (!$('sync-modal')) return;         // only react while the modal is open
-      if (s === 'accept') hostBody('accept');
-      else if (s === 'connected') { hostBody('connected'); toast('Device connected'); }
-      else if (s === 'error') hostBody('error', { msg: err || 'Connection error.' });
-      else if (s === 'closed') hostBody('error', { msg: 'The device disconnected.' });
+      if ($('sync-modal')) {                    // manual modal is open → drive its UI
+        if (s === 'accept') hostBody('accept');
+        else if (s === 'connected') { hostBody('connected'); toast('Device connected'); }
+        else if (s === 'error') hostBody('error', { msg: err || 'Connection error.' });
+        else if (s === 'closed') hostBody('error', { msg: 'The device disconnected.' });
+      }
+      if (s === 'connected') {                  // any successful connection (manual or reconnect)
+        localStorage.setItem(HAS_PAIRED, '1');
+        manualMode = false; advertising = false;
+        Sync.send({ t: 'pairkey', key: deviceId() });   // (re)confirm our key so the guest can rejoin
+        if (!$('sync-modal')) toast('Device reconnected');
+      }
+      if (s === 'closed' || s === 'error') {    // connection ended → resume background advertising
+        advertising = false;
+        if (!manualMode) setTimeout(advertiseTick, 1200);
+      }
     });
+    setTimeout(advertiseTick, 600);             // if we've paired before, start listening for a reconnect
   } else { // guest
+    Sync.onMessage(m => { if (m.t === 'pairkey' && m.key) setPairKey(m.key); });
     Sync.onState((s, err) => {
       if ((s === 'closed' || s === 'error') && booted) {
         booted = false;
-        mountConnectScreen(appEl, err || 'Connection lost — enter the code again when your phone is back.');
+        if (getPairKey()) startGuestReconnect(appEl, err || 'Connection lost — reconnecting…');
+        else mountConnectScreen(appEl, err || 'Connection lost — enter the code again.');
       }
     });
   }

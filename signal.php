@@ -79,8 +79,9 @@ $hits[] = $now;
 
 // ---------- validate inputs ----------
 $action = $_GET['a'] ?? '';
-$code = preg_replace('/\D/', '', $_GET['code'] ?? '');
-if (strlen($code) !== 6) fail(400, 'bad code');
+// 6-digit code for first pairing, or a long device key for auto-reconnect.
+$code = preg_replace('/[^a-zA-Z0-9]/', '', $_GET['code'] ?? '');
+if (strlen($code) < 6 || strlen($code) > 64) fail(400, 'bad code');
 $roomFile = "$dir/room_" . $code . '.json';
 
 function loadRoom(string $roomFile): ?array {
@@ -104,9 +105,11 @@ switch ($action) {
   // ----- host publishes offer, creating the room -----
   case 'offer':
     if ($method === 'POST') {
-      // Refuse to clobber a live room under the same code (someone else is pairing).
+      // Block only if a pairing is already IN PROGRESS under this code (claimed).
+      // An unclaimed offer may be overwritten — this lets a phone refresh its own
+      // standing "reconnect" advertisement under its device key.
       $existing = loadRoom($roomFile);
-      if ($existing && !($existing['expired'] ?? false)) fail(409, 'code in use');
+      if ($existing && $existing['claimed']) fail(409, 'code in use');
       saveRoom($roomFile, [
         'offer' => body(), 'answer' => null, 'claimed' => false,
         'ice' => ['host' => [], 'guest' => []], 'created' => time(),

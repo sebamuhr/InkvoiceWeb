@@ -154,7 +154,7 @@ if(FORCE || (STANDALONE && IS_PHONE)){
   // the same Wi-Fi and mirrors it live. Show the connect screen; boot the full
   // app once paired, and return here if the link drops.
   SyncUI.initSyncUI({ role:'guest', bootApp:render, appEl });
-  SyncUI.mountConnectScreen(appEl);
+  SyncUI.mountGuestStart(appEl);   // silent reconnect if we've paired before, else the code screen
 } else {
   // Phone browser, not yet installed → show the Add-to-Home-Screen page.
   appEl.innerHTML = Landing.html();

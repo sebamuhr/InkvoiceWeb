@@ -40,7 +40,7 @@
 - **Service worker is network-first** (`sw.js`): it always tries the network first so new
   code loads immediately when online, and falls back to cache when offline. On any file
   change bump the cache constant `const CACHE = 'inkvoice-vNN'` so old caches are purged.
-  **Current: `inkvoice-v20`.**
+  **Current: `inkvoice-v22`.**
 - If you add/remove a file, also update the `SHELL` array in `sw.js`.
 
 ---
@@ -305,9 +305,27 @@ Decisions locked with the user:
   (`stun:stun.cloudflare.com:3478`, setup-only, no data, no TURN) → **phone+laptop paired
   successfully over WiFi, live mirror working.** **SW → v21.** Core device sync (Phases 1–3)
   is DONE and validated on real hardware. Deployed to Hostinger `public_html/app/` (v21).
-  **Remaining:** (a) auto-reconnect token (type code once, then auto-reconnect); (b) bring the
-  native Android app into the mesh (separate Kotlin/Play effort, protocol is already
-  platform-neutral); (c) `git push` (commits are LOCAL only so far).
+  **Remaining:** (a) ~~auto-reconnect~~ ✅ DONE (below); (b) bring the native Android app into
+  the mesh (separate Kotlin/Play effort, protocol is already platform-neutral).
+- **✅ AUTO-RECONNECT DONE (2026-07-05):** type the 6-digit code ONCE; after that the laptop
+  reconnects silently. Mechanism: on first pairing the phone sends the guest a persistent
+  secret **device key** (`inkvoice_device_id`, 32 hex, in the phone's localStorage); guest
+  stores it as `inkvoice_pair_key`. Phone, once it has ever paired (`inkvoice_has_paired`),
+  **background-advertises** under its device key while idle (`Sync.host({code:deviceId,
+  autoAccept:true})`, refreshed on each terminal state) and **auto-accepts** a peer that knows
+  the key (knowing the long secret = trust; no Accept prompt). Guest on load →
+  `SyncUI.mountGuestStart`: if it has a pair key → `startGuestReconnect` (silent retry loop,
+  "Reconnecting…" screen + "Enter a code instead" escape), else the code screen. None of these
+  keys are in the store snapshot, so they don't sync. **signal.php CHANGED** (must be
+  re-uploaded): code validation now `[A-Za-z0-9]{6,64}` (was exactly 6 digits) to allow the
+  device key, and `offer` POST now overwrites an UNCLAIMED room (blocks only if `claimed`) so
+  the phone can refresh its standing advertise offer. **Two bugs found & fixed during testing:**
+  (1) `join()` did `replace(/\D/g,'')` which stripped the hex letters out of the device key →
+  now `[^A-Za-z0-9]` + min-length 6; (2) `accept()` guarded `state!=='accept'` so the
+  auto-accept (state 'connecting') bailed and never sent `welcome` → now guards only
+  `state==='connected'`. **SW → v22.** **Verified** (Playwright, real app UI + WebRTC + mock):
+  pair → disconnect → silent auto-reconnect (no code, no prompt) → data mirrored → live deltas;
+  manual pairing + full-mirror regressions still green.
 - **Numbering worry solved:** laptop reads the phone's synced counters live, so `peekNextNumber`
   is always correct. (Rare simultaneous-create race → later hardening: phone as sole number
   issuer.) **Can't fully test real-LAN WebRTC headlessly** → user does a 2-device WiFi check.

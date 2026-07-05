@@ -121,8 +121,10 @@ class SyncManager {
   // passed through to the app via onMessage.
   _handleControl(msg) {
     if (msg.t === 'hello' && this.role === 'host') {
-      // Guest announced itself → ask the human to Accept.
       this._pendingPeer = msg;
+      // Trusted reconnect (known device key) → connect straight away; otherwise
+      // a first-time device must be Accepted by the human.
+      if (this.autoAccept) { this.accept(); return; }
       this._set('accept');
       this._peerCbs.forEach(cb => { try { cb(msg); } catch {} });
     } else if (msg.t === 'welcome' && this.role === 'guest') {
@@ -136,14 +138,17 @@ class SyncManager {
   }
 
   // ---- HOST (phone) ----
-  async host() {
+  // opts.code    — fixed room key (used for auto-reconnect under the device key);
+  //                omitted → a fresh random 6-digit code for first pairing.
+  // opts.autoAccept — skip the human Accept prompt (trusted reconnect only).
+  async host({ code = null, autoAccept = false } = {}) {
     this._reset('host');
     this._alive = true;
-    this.code = digits6();
+    this.autoAccept = autoAccept;
+    this.code = code || digits6();
     this.pc = this._newPC();
     const ch = this.pc.createDataChannel('inkvoice', { ordered: true });
     this._wireChannel(ch);
-    ch.onopen = () => { /* wait for the guest's hello before accepting */ };
 
     const offer = await this.pc.createOffer();
     await this.pc.setLocalDescription(offer);
@@ -152,7 +157,7 @@ class SyncManager {
       await sig('offer', this.code, { method: 'POST', body: JSON.stringify(offer) });
     } catch (e) {
       // 409 = someone is already pairing under this random code; pick another.
-      if (e.status === 409) return this.host();
+      if (e.status === 409 && !code) return this.host({ autoAccept });
       this._teardown('error', 'Could not reach the pairing server'); throw e;
     }
 
@@ -162,9 +167,11 @@ class SyncManager {
     return this.code;   // show this to the user
   }
 
-  // Host: user tapped Accept → open the data flow and send the mirror trigger.
+  // Host accepts the peer — either the user tapped Accept (state 'accept') or a
+  // trusted reconnect auto-accepted (state 'connecting'). Either way: send the
+  // welcome that completes the handshake and go connected. Idempotent.
   accept() {
-    if (this.state !== 'accept') return;
+    if (this.state === 'connected') return;
     this.send({ t: 'welcome', app: 'inkvoice-web' });
     this._set('connected');
   }
@@ -195,8 +202,10 @@ class SyncManager {
   async join(code) {
     this._reset('guest');
     this._alive = true;
-    this.code = String(code).replace(/\D/g, '');
-    if (this.code.length !== 6) { this._set('error', 'Enter the 6-digit code'); return false; }
+    // Accept either a 6-digit pairing code or a long alphanumeric device key
+    // (auto-reconnect), matching signal.php's 6–64 char validation.
+    this.code = String(code).replace(/[^a-zA-Z0-9]/g, '');
+    if (this.code.length < 6) { this._set('error', 'Enter the 6-digit code'); return false; }
     this.pc = this._newPC();
     this.pc.ondatachannel = (e) => {
       this._wireChannel(e.channel);
