@@ -58,7 +58,7 @@ export function html(){
     <button class="btn block" id="sync-connect-btn" style="margin-top:16px">${Icon.link || ''} Connect a device</button>
     <div class="section-sub" style="margin:6px 2px 0">Use your laptop or tablet to create invoices — it mirrors this phone over the same Wi-Fi. First time, tap this for a code; after that just press <b>Re-Connect</b> on the laptop. Use <b>either</b> your phone or your laptop, never both at once.</div>
     ${localStorage.getItem('inkvoice_has_paired') ? `<button class="btn ghost block" id="sync-unpair-btn" style="margin-top:10px">Unpair / forget laptop</button>` : ''}
-    <button class="linkbtn" id="sync-diag-btn" style="margin-top:8px;opacity:.6;font-size:12px">Connection diagnostics</button>
+    <button class="linkbtn" id="sync-diag-btn" style="margin-top:8px;opacity:.6;font-size:12px">Connection diagnostics${window.__syncVersion ? ' · ' + window.__syncVersion : ''}</button>
 
     <div class="two" style="margin-top:16px">
       <button class="btn" id="backup">Backup Now</button>

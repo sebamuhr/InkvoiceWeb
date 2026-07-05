@@ -13,6 +13,10 @@
 // deltas) is layered on top via onMessage()/send() by the app (Phase 2). The
 // wire format is plain JSON so a future native Android client can speak it too.
 
+// Bumped every sync change so the running build is visible on-screen — if this
+// doesn't match the latest, the deploy/service-worker cache didn't update.
+export const APP_VERSION = 'v32';
+
 const SIGNAL_URL = window.__INKVOICE_SIGNAL_URL || 'https://inkvoiceapp.com/signal.php';
 
 // Same-WiFi peer-to-peer. A STUN server is used ONLY during connection setup so

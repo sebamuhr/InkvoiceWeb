@@ -40,7 +40,10 @@
 - **Service worker is network-first** (`sw.js`): it always tries the network first so new
   code loads immediately when online, and falls back to cache when offline. On any file
   change bump the cache constant `const CACHE = 'inkvoice-vNN'` so old caches are purged.
-  **Current: `inkvoice-v31`.**
+  **Current: `inkvoice-v32`.** There is ALSO `export const APP_VERSION` in `js/sync.js` — keep it
+  in sync with the SW number; it's shown on-screen (connect/reconnect/hub/Profile diag link) so a
+  deploy can be verified at a glance ("Inkvoice vNN"). If the on-screen version is stale, it's a
+  deploy/SW-cache problem, not a code problem.
 - If you add/remove a file, also update the `SHELL` array in `sw.js`.
 
 ---
@@ -461,6 +464,17 @@ Decisions locked with the user:
   Profile relabel. **New regression `paired_boot_test`** (reopen both apps → laptop Re-Connect +
   phone Accept works with NO toggle on the phone) — this would have caught it. Full suite green.
   **SW → v31.**
+- **Robust reconnect: polling + on-screen version + no-code-when-paired (2026-07-05):** user
+  still hit "press Re-Connect, nothing happens" and couldn't tell if deploys were even landing.
+  Three changes: (1) **On-screen version** `APP_VERSION` (`js/sync.js`, = SW number) shown on
+  every sync screen + Profile diag link, so a stale deploy is obvious immediately. (2) **Polling
+  Re-Connect** — `doReconnect()` now retries `join(deviceKey)` for ~40s with live status
+  ("Looking for your phone…" → "Found — tap Accept") instead of one shot that silently failed on
+  timing; so you can press Re-Connect first and wake the phone after. (3) **Paired phone shows NO
+  code** — `window.__syncConnect` → `openReconnectHost()` when HAS_PAIRED (hosts the device key
+  with a "Reconnect your laptop / waiting…" screen + a "Pair a NEW device (show a code)" link);
+  only first pairing shows a code. New tests: `poll_test` (press Re-Connect while phone asleep →
+  connects when it wakes) + `nocode` check. Full suite (12) green. **SW → v32 / APP_VERSION v32.**
 - **Numbering worry solved:** laptop reads the phone's synced counters live, so `peekNextNumber`
   is always correct. (Rare simultaneous-create race → later hardening: phone as sole number
   issuer.) **Can't fully test real-LAN WebRTC headlessly** → user does a 2-device WiFi check.

@@ -7,7 +7,7 @@
 //   once, quietly re-advertises under its device key while idle and auto-accepts
 //   a peer that knows the key (knowing the long secret IS the trust).
 
-import { Sync, SyncLog } from './sync.js';
+import { Sync, SyncLog, APP_VERSION } from './sync.js';
 import { toast } from './util.js';
 
 const DEVICE_KEY = 'inkvoice_device_id';   // phone: our stable secret room key
@@ -85,6 +85,29 @@ export async function openHostModal() {
   }
 }
 
+// PHONE, already paired: reconnect the SAME laptop with no code. Hosts under the
+// device key and waits; the laptop presses "Re-Connect" and this shows Accept.
+export async function openReconnectHost() {
+  manualMode = true; advertising = false;
+  removeEl('sync-modal');
+  document.body.appendChild(elFrom(`
+    <div class="modal-overlay" id="sync-modal"><div class="modal">
+      <h3 style="margin:0 0 12px">Reconnect your laptop</h3>
+      <div id="sync-body" class="sync-body"></div>
+      <button class="btn ghost block" id="sync-newdev" style="margin-top:12px">Pair a NEW device (show a code)</button>
+      <button class="btn ghost block" id="sync-close" style="margin-top:10px">Close</button>
+    </div></div>`));
+  $('sync-close').onclick = () => {
+    if (Sync.state !== 'connected') Sync.disconnect();
+    removeEl('sync-modal'); manualMode = false;
+    setTimeout(() => { advertiseTick(); renderHub(); }, 800);
+  };
+  $('sync-newdev').onclick = openHostModal;
+  hostBody('reconnect-waiting');
+  try { await Sync.host({ code: deviceId(), autoAccept: false }); hostBody('reconnect-waiting'); }
+  catch { hostBody('error', { msg: 'Could not reach the pairing server. Check your connection and try again.' }); }
+}
+
 function hostBody(kind, data = {}) {
   const body = $('sync-body'); if (!body) return;
   if (kind === 'starting') {
@@ -94,6 +117,10 @@ function hostBody(kind, data = {}) {
       <div class="sync-note">On your other device, open Inkvoice and enter this code:</div>
       <div class="sync-code">${data.code}</div>
       <div class="sync-note muted">Waiting for a device to connect…</div>`;
+  } else if (kind === 'reconnect-waiting') {
+    body.innerHTML = `
+      <div class="sync-note">On your laptop, open Inkvoice and press <b>Re-Connect</b>. No code needed.</div>
+      <div class="sync-note muted" style="margin-top:8px">Keep this screen on — waiting for your laptop…</div>`;
   } else if (kind === 'accept') {
     body.innerHTML = `
       <div class="sync-note"><b>A device wants to connect.</b><br>Only accept if this is your own device.</div>
@@ -204,7 +231,7 @@ function showDiag() {
   $('diag-clear').onclick = () => SyncLog.clear();
   $('diag-close').onclick = () => { off(); removeEl('sync-diag'); };
 }
-const diagLink = '<button class="linkbtn cs-diag" id="cs-diag" style="margin-top:14px;opacity:.6;font-size:12px">Connection diagnostics</button>';
+const diagLink = `<button class="linkbtn cs-diag" id="cs-diag" style="margin-top:14px;opacity:.6;font-size:12px">Connection diagnostics · Inkvoice ${APP_VERSION}</button>`;
 function wireDiag() { const b = $('cs-diag'); if (b) b.onclick = showDiag; }
 
 // ---------------- PHONE: background reconnect advertising ----------------
@@ -285,31 +312,36 @@ export function startGuestReconnect(container, note = '') {
 async function doReconnect() {
   const key = getPairKey();
   if (!key) { mountConnectScreen(appEl); return; }
-  const btn = $('rc-go'), status = $('rc-status');
+  const btn = $('rc-go');
   const token = ++reconnectToken; booted = false;
+  const setStatus = t => { const el = $('rc-status'); if (el) el.textContent = t; };
   if (btn) btn.disabled = true;
-  if (status) status.textContent = 'Connecting… now tap Accept on your phone.';
+  setStatus('Looking for your phone…');
+  SyncLog.add('[ui] Re-Connect pressed → polling for the phone');
   const off = Sync.onMessage(m => {
     if (m.t === 'snapshot' && token === reconnectToken) { off(); booted = true; bootApp(); }
   });
-  const ok = await Sync.join(key);
-  if (!ok) {
-    off();
-    if (token !== reconnectToken) return;
-    if (btn) btn.disabled = false;
-    if (status) status.textContent = Sync.error === 'No device is offering that code'
-      ? 'Couldn’t reach your phone. Open Inkvoice on it (same Wi-Fi), then press Re-Connect again.'
-      : (Sync.error || 'Could not connect. Try again.');
-    return;
+  // Keep trying for ~40s (like re-typing the code until it takes). The phone stands
+  // a standing offer under the device key whenever Inkvoice is open on it.
+  const deadline = Date.now() + 40000;
+  while (token === reconnectToken && !booted && Date.now() < deadline) {
+    const ok = await Sync.join(key);
+    if (token !== reconnectToken) { off(); return; }
+    if (ok) {
+      setStatus('Found your phone — now tap Accept on it.');
+      // Wait for the phone's Accept + first snapshot; bail to retry if the link dies.
+      for (let i = 0; i < 90 && token === reconnectToken && !booted
+        && Sync.state !== 'closed' && Sync.state !== 'error'; i++) await sleep(500);
+      if (booted || token !== reconnectToken) { off(); return; }
+      setStatus('Looking for your phone…');   // link dropped before Accept → try again
+    } else {
+      await sleep(1500);                        // phone not advertising yet → wait and retry
+    }
   }
-  // Joined — wait for the phone's Accept + first snapshot (up to ~45s).
-  for (let i = 0; i < 90 && token === reconnectToken && !booted
-    && Sync.state !== 'closed' && Sync.state !== 'error'; i++) await sleep(500);
-  if (!booted && token === reconnectToken) {
-    off();
-    if (btn) btn.disabled = false;
-    if (status) status.textContent = 'Not confirmed on your phone. Press Re-Connect and tap Accept.';
-  }
+  off();
+  if (token !== reconnectToken || booted) return;
+  if (btn) btn.disabled = false;
+  setStatus('Couldn’t reach your phone. Make sure Inkvoice is OPEN on your phone (same Wi-Fi), then press Re-Connect again.');
 }
 
 // ---------------- global wiring ----------------
@@ -317,6 +349,8 @@ export function initSyncUI(opts) {
   role = opts.role;
   bootApp = opts.bootApp || (() => {});
   appEl = opts.appEl || null;
+  window.__syncVersion = APP_VERSION;
+  SyncLog.add(`Inkvoice ${APP_VERSION} — sync init (role: ${role})`);
 
   // Keep the screen awake while actively connected (both roles); let it sleep otherwise.
   Sync.onState(s => { if (s === 'connected') acquireWake(); else if (s === 'closed' || s === 'error') releaseWake(); });
@@ -358,7 +392,8 @@ export function initSyncUI(opts) {
   if (role === 'phone') {
     // "Connect a device": first time shows a code; once paired it just re-shares to
     // the known laptop (hub mode), which reconnects automatically without a code.
-    window.__syncConnect = openHostModal;   // show a code to pair a device (first time or a new one)
+    // First time → show a code. Already paired → reconnect the known laptop (no code).
+    window.__syncConnect = () => { if (localStorage.getItem(HAS_PAIRED)) openReconnectHost(); else openHostModal(); };
     window.__syncUnpair = unpairPhone;
     window.__syncPaired = () => !!localStorage.getItem(HAS_PAIRED);
     window.__syncDiag = showDiag;
