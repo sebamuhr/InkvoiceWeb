@@ -128,12 +128,14 @@ function showHubScreen() {
 // ---------------- PHONE: background reconnect advertising ----------------
 function canAdvertise() {
   return role === 'phone' && localStorage.getItem(HAS_PAIRED) && !manualMode
+    && document.visibilityState === 'visible'
     && ['idle', 'closed', 'error'].includes(Sync.state);
 }
 async function advertiseTick() {
   if (advertising || !canAdvertise()) return;
   advertising = true;
-  // Stand a "reconnect" offer under our device key; auto-accept a peer that knows it.
+  // Stand a "reconnect" offer under our device key and AUTO-accept a device that
+  // knows the key — reconnection is automatic and instant, no tap required.
   try { await Sync.host({ code: deviceId(), autoAccept: true }); } catch {}
 }
 
@@ -180,8 +182,8 @@ export async function startGuestReconnect(container, note = '') {
   container.innerHTML = `
     <div class="connect-screen">
       <div class="cs-brand">Inkvoice<span style="color:var(--accent,#f4a52b)">.</span></div>
-      <h1>Reconnecting to your phone…</h1>
-      <p class="cs-lede">${note ? '<b>' + note + '</b><br>' : ''}If it doesn't reconnect, open <b>Inkvoice on your phone</b> (same Wi-Fi) and it will link back automatically — no code needed.</p>
+      <h1>Reconnecting…</h1>
+      <p class="cs-lede">${note ? '<b>' + note + '</b><br>' : ''}Keep <b>Inkvoice open on your phone</b> (same Wi-Fi). This reconnects on its own — no code needed.</p>
       <div id="rc-status" class="cs-status">Looking for your phone…</div>
       <button class="btn ghost" id="rc-manual" style="max-width:320px;margin-top:20px">Enter a code instead</button>
     </div>`;
@@ -190,13 +192,13 @@ export async function startGuestReconnect(container, note = '') {
   const key = getPairKey();
   const off = Sync.onMessage(m => { if (m.t === 'snapshot' && token === reconnectToken) { off(); booted = true; bootApp(); } });
   while (token === reconnectToken && !booted) {
-    const ok = await Sync.join(key);
-    if (ok) {                                   // offer found → give the connection time to settle
+    const ok = await Sync.join(key);              // phone auto-accepts → connects with no tap
+    if (ok) {
       for (let i = 0; i < 16 && token === reconnectToken && !booted
-        && Sync.state !== 'closed' && Sync.state !== 'error'; i++) await sleep(500);
+        && Sync.state !== 'closed' && Sync.state !== 'error'; i++) await sleep(400);
     }
     if (booted || token !== reconnectToken) { off(); return; }
-    await sleep(2500);                          // phone not advertising yet → wait and retry
+    await sleep(1000);                            // phone not advertising yet → retry quickly
   }
   off();
 }
@@ -210,36 +212,46 @@ export function initSyncUI(opts) {
   // Keep the screen awake while actively connected (both roles); let it sleep otherwise.
   Sync.onState(s => { if (s === 'connected') acquireWake(); else if (s === 'closed' || s === 'error') releaseWake(); });
 
-  // Coming back to the foreground after the OS suspended us: the link is usually
-  // dead even though state may still read 'connected'. Detect that, tear it down,
-  // and recover fast (phone re-advertises; guest's own handler re-enters reconnect).
+  // Sleep/wake handling — the biggest cause of "it won't reconnect":
+  //  • Going HIDDEN (screen lock / app switch): drop the link NOW so the other
+  //    side learns instantly instead of waiting for a timeout.
+  //  • Coming back VISIBLE: the phone re-advertises so a searching device can
+  //    reconnect (and we ask you to confirm with the Reconnect prompt).
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState !== 'visible') return;
-    const reallyConnected = Sync.state === 'connected' && Sync.pc && Sync.pc.connectionState === 'connected';
-    if (reallyConnected) { acquireWake(); return; }
-    if (Sync.state === 'connected') Sync.disconnect();   // stale 'connected' → drop it
-    if (role === 'phone') setTimeout(advertiseTick, 300);
+    if (document.visibilityState === 'hidden') {
+      // Going to the background — the OS suspends the phone, and desktop browsers
+      // throttle/discard inactive tabs, either of which silently kills the link.
+      // Drop it cleanly NOW (best-effort 'bye') so the other side learns instantly
+      // and is ready; we reconnect automatically the moment we're visible again.
+      if (['connected', 'connecting', 'accept', 'waiting'].includes(Sync.state)) Sync.disconnect();
+      return;
+    }
+    // Back in the foreground → reconnect immediately.
+    if (role === 'phone') { if (Sync.state === 'connected') acquireWake(); setTimeout(advertiseTick, 120); }
+    else if (Sync.state === 'connected' && Sync.pc && Sync.pc.connectionState === 'connected') { acquireWake(); }
+    else if (booted) { Sync.disconnect(); }                       // was live but the tab got killed → drop → guest handler rejoins
+    else if (getPairKey()) { startGuestReconnect(appEl); }        // kick an immediate reconnect attempt now
   });
 
   if (role === 'phone') {
     window.__syncConnect = openHostModal;
     Sync.onState((s, err) => {
-      if ($('sync-modal')) {                    // manual modal is open → drive its UI
+      if ($('sync-modal')) {                    // first-pairing manual modal is open → drive its UI
         if (s === 'accept') hostBody('accept');
         else if (s === 'connected') { hostBody('connected'); toast('Device connected'); }
         else if (s === 'error') hostBody('error', { msg: err || 'Connection error.' });
         else if (s === 'closed') hostBody('error', { msg: 'The device disconnected.' });
       }
-      if (s === 'connected') {                  // any successful connection (manual or reconnect)
+      if (s === 'connected') {                  // any successful connection (manual or auto-reconnect)
         localStorage.setItem(HAS_PAIRED, '1');
         manualMode = false; advertising = false;
         Sync.send({ t: 'pairkey', key: deviceId() });   // (re)confirm our key so the guest can rejoin
         if (!$('sync-modal')) toast('Device reconnected');
       }
-      if (s === 'closed' || s === 'error') {    // connection ended → resume background advertising
+      if (s === 'closed' || s === 'error') {    // connection ended → resume advertising for auto-reconnect
         advertising = false;
-        if ($('sync-hub')) { removeEl('sync-hub'); toast('Device disconnected — it will reconnect automatically'); }
-        if (!manualMode) setTimeout(advertiseTick, 1200);
+        if ($('sync-hub')) { removeEl('sync-hub'); toast('Device disconnected'); }
+        if (!manualMode) setTimeout(advertiseTick, 800);
       }
     });
     setTimeout(advertiseTick, 600);             // if we've paired before, start listening for a reconnect

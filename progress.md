@@ -40,7 +40,7 @@
 - **Service worker is network-first** (`sw.js`): it always tries the network first so new
   code loads immediately when online, and falls back to cache when offline. On any file
   change bump the cache constant `const CACHE = 'inkvoice-vNN'` so old caches are purged.
-  **Current: `inkvoice-v25`.**
+  **Current: `inkvoice-v26`.**
 - If you add/remove a file, also update the `SHELL` array in `sw.js`.
 
 ---
@@ -364,6 +364,20 @@ Decisions locked with the user:
     email (required) or a non-empty bad website; PDF generation blocks on a bad client email.
     Website accepts optional `http(s)://` + `www.`, requires `domain.tld`. **Verified** (17
     checks: regex truth table + UI warnings show/hide + save/PDF blocked). **SW → v25.**
+- **Instant auto-reconnect on tab-switch/sleep (2026-07-05):** real-world — desktop browsers
+  throttle/discard BACKGROUND TABS, so switching away from the laptop tab drops the link after a
+  few seconds (on top of phone-sleep). Requirement: reconnect must be AUTOMATIC + INSTANT (no
+  tap). (Briefly built a phone "Reconnect" prompt then reverted per user — reconnect is
+  auto-accept.) `syncui.js`: on `visibilitychange`→**hidden**, BOTH roles `Sync.disconnect()`
+  (best-effort `bye`) so the peer learns instantly and is ready; on →**visible**, the phone
+  re-advertises (`autoAccept:true`) and the guest immediately kicks a reconnect
+  (`startGuestReconnect`, or drops a stale link first). Guest reconnect loop retries every ~1s
+  (was 2.5s); phone re-advertises 800ms after a drop. `sync.js` heartbeat tightened to
+  ping 3s / dead-after 9s (was 5s/15s) as the backstop. `Sync.linked` flag added (guest data
+  channel open). **Verified:** dedicated tab-switch test (hide laptop tab → drops; return →
+  auto-reconnects ~instantly + live sync restored), plus auto-reconnect/mirror/UI/abrupt-death/
+  boot/validation regressions all green. **SW → v26.** NOTE: phone-locked/app-closed still needs
+  native Android; this makes the common tab-switch case seamless.
 - **Numbering worry solved:** laptop reads the phone's synced counters live, so `peekNextNumber`
   is always correct. (Rare simultaneous-create race → later hardening: phone as sole number
   issuer.) **Can't fully test real-LAN WebRTC headlessly** → user does a 2-device WiFi check.

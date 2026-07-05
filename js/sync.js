@@ -81,9 +81,9 @@ class SyncManager {
     this._lastRx = Date.now();
     this._hb = setInterval(() => {
       if (!this.channel || this.channel.readyState !== 'open') return;
-      if (Date.now() - this._lastRx > 15000) { this._teardown('closed'); return; }
+      if (Date.now() - this._lastRx > 9000) { this._teardown('closed'); return; }
       try { this.channel.send(JSON.stringify({ t: '__ping' })); } catch {}
-    }, 5000);
+    }, 3000);
   }
   _stopHeartbeat() { clearInterval(this._hb); this._hb = null; }
 
@@ -238,7 +238,7 @@ class SyncManager {
     this.pc = this._newPC();
     this.pc.ondatachannel = (e) => {
       this._wireChannel(e.channel);
-      e.channel.onopen = () => this.send({ t: 'hello', app: 'inkvoice-web', ua: navigator.userAgent.slice(0, 120) });
+      e.channel.onopen = () => { this.linked = true; this.send({ t: 'hello', app: 'inkvoice-web', ua: navigator.userAgent.slice(0, 120) }); };
     };
 
     this._set('connecting');
@@ -287,6 +287,7 @@ class SyncManager {
   }
   _teardownQuiet() {
     this._alive = false;
+    this.linked = false;
     this._stopHeartbeat();
     clearTimeout(this._connWatch);
     try { this.channel && this.channel.close(); } catch {}
