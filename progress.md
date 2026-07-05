@@ -40,7 +40,7 @@
 - **Service worker is network-first** (`sw.js`): it always tries the network first so new
   code loads immediately when online, and falls back to cache when offline. On any file
   change bump the cache constant `const CACHE = 'inkvoice-vNN'` so old caches are purged.
-  **Current: `inkvoice-v28`.**
+  **Current: `inkvoice-v29`.**
 - If you add/remove a file, also update the `SHELL` array in `sw.js`.
 
 ---
@@ -404,6 +404,24 @@ Decisions locked with the user:
   screen (tests no longer click `#sync-close`). **Verified** `mutex_test` (lock after pairing →
   reclaim drops laptop → solo blocks reconnect → resume auto-reconnects) + full suite green.
   **SW → v28.**
+- **Unpair/reset + on-device diagnostics + stale-room fix (2026-07-05):** user: device-key
+  auto-reconnect fails on real devices (first-pair via code works), and there was NO way to
+  fully unpair/forget → laptop could get stuck. Three parts:
+  (1) **Likely root cause fix** — the FIXED device-key room on `signal.php` can be left
+  "claimed but dead" (409s the phone's re-advertise, 410s the laptop's join = deadlock the
+  fresh-random-code path never hits). `sync.js host()` now does a best-effort `sig('close')` on
+  the device-key room BEFORE posting each offer, so every advertise is a clean room.
+  (2) **Unpair/forget** — phone `unpairPhone()` (clears HAS_PAIRED + regenerates DEVICE_KEY +
+  mode solo; buttons on hub screen & Profile "Unpair / forget laptop"); laptop `forgetPhone()`
+  (clears PAIR_KEY → fresh code screen; "Forget this phone & start over" on the reconnect
+  screen). Profile shows "Reconnect laptop" vs "Connect a device" by pair state.
+  (3) **On-device diagnostics** — `SyncLog` ring buffer in `sync.js` logs state transitions,
+  host/join, pc/ice states, sig failures; a "Connection diagnostics" link on the connect /
+  reconnect / hub screens + Profile opens a live, copyable log overlay (`showDiag`, z-index 600
+  so it sits above the z-400 hub). So real-device failures can be READ/shared without a computer.
+  `window.__syncUnpair/__syncForget/__syncDiag/__syncPaired` exposed for Profile. **Verified**
+  `reset_test` (diag shows lines, laptop forget → code screen, phone unpair clears keys) + full
+  suite green. **SW → v29.**
 - **Numbering worry solved:** laptop reads the phone's synced counters live, so `peekNextNumber`
   is always correct. (Rare simultaneous-create race → later hardening: phone as sole number
   issuer.) **Can't fully test real-LAN WebRTC headlessly** → user does a 2-device WiFi check.

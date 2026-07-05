@@ -7,7 +7,7 @@
 //   once, quietly re-advertises under its device key while idle and auto-accepts
 //   a peer that knows the key (knowing the long secret IS the trust).
 
-import { Sync } from './sync.js';
+import { Sync, SyncLog } from './sync.js';
 import { toast } from './util.js';
 
 const DEVICE_KEY = 'inkvoice_device_id';   // phone: our stable secret room key
@@ -130,9 +130,13 @@ function renderHub() {
       : 'Open Inkvoice on your laptop (same Wi-Fi). It reconnects on its own — no code needed.'}</div>
     <div class="hub-warn">Use <b>either</b> your phone or your laptop — never both at once.</div>
     <button class="btn block" id="hub-reclaim" style="max-width:320px;margin-top:18px">Use this phone instead</button>
-    <button class="btn ghost block" id="hub-newdev" style="max-width:320px;margin-top:10px">Pair a different device</button>`;
+    <button class="btn ghost block" id="hub-newdev" style="max-width:320px;margin-top:10px">Pair a different device</button>
+    <button class="btn ghost block" id="hub-unpair" style="max-width:320px;margin-top:10px">Unpair / forget laptop</button>
+    ${diagLink}`;
   $('hub-reclaim').onclick = reclaimPhone;
   $('hub-newdev').onclick = () => { removeEl('sync-hub'); openHostModal(); };
+  $('hub-unpair').onclick = unpairPhone;
+  wireDiag();
 }
 
 // Hand control to THIS phone: stop being a hub, drop the laptop, become the active
@@ -149,12 +153,63 @@ function reclaimPhone() {
 // Hand control back to the laptop: become a hub again and start advertising; the
 // paired laptop (which remembers the key) reconnects automatically, no code.
 function resumeLaptop() {
+  SyncLog.add('[ui] resumeLaptop → hub mode, advertising');
   setMode('hub');
   advertising = false;
   manualMode = false;
   renderHub();
   setTimeout(advertiseTick, 100);
 }
+
+// PHONE: fully unpair — forget the laptop and start clean. New device key means any
+// old laptop must pair again from a fresh code.
+function unpairPhone() {
+  SyncLog.add('[ui] unpair phone (forget laptop, new device key)');
+  Sync.disconnect();
+  advertising = false;
+  setMode('solo');
+  localStorage.removeItem(HAS_PAIRED);
+  localStorage.removeItem(DEVICE_KEY);   // regenerate a fresh secret next pairing
+  removeEl('sync-hub'); removeEl('sync-modal');
+  toast('Device unpaired — start a new connection any time');
+}
+
+// LAPTOP: forget the phone we paired with → back to a clean "enter a code" screen.
+function forgetPhone() {
+  SyncLog.add('[ui] forget phone (clear pair key)');
+  reconnectToken++;                      // stop any running reconnect loop
+  Sync.disconnect();
+  localStorage.removeItem(PAIR_KEY);
+  booted = false;
+  mountConnectScreen(appEl, 'Forgotten. Enter a fresh code from your phone to connect again.');
+}
+
+// On-device diagnostics — a live view of what the connection is doing, so issues on
+// a real phone/laptop can be read (and shared) without a computer or dev tools.
+function showDiag() {
+  removeEl('sync-diag');
+  const el = elFrom(`
+    <div class="modal-overlay" id="sync-diag" style="z-index:600"><div class="modal" style="max-width:560px">
+      <h3 style="margin:0 0 8px">Connection diagnostics</h3>
+      <div class="sync-note muted" style="margin-bottom:8px">Newest at the bottom. Screenshot or copy this if something won't connect.</div>
+      <pre id="diag-log" style="background:#0d0d0d;color:#b7d3b7;font-size:11px;line-height:1.45;padding:10px;border-radius:8px;max-height:46vh;overflow:auto;white-space:pre-wrap;word-break:break-word"></pre>
+      <div class="two" style="margin-top:12px">
+        <button class="btn ghost" id="diag-copy">Copy</button>
+        <button class="btn ghost" id="diag-clear">Clear</button>
+      </div>
+      <button class="btn block" id="diag-close" style="margin-top:10px">Close</button>
+    </div></div>`);
+  document.body.appendChild(el);
+  const pre = $('diag-log');
+  const paint = () => { if (!$('diag-log')) return; pre.textContent = SyncLog.text() || '(nothing logged yet)'; pre.scrollTop = pre.scrollHeight; };
+  paint();
+  const off = SyncLog.onChange(paint);
+  $('diag-copy').onclick = () => { navigator.clipboard?.writeText(SyncLog.text()).then(() => toast('Log copied'), () => {}); };
+  $('diag-clear').onclick = () => SyncLog.clear();
+  $('diag-close').onclick = () => { off(); removeEl('sync-diag'); };
+}
+const diagLink = '<button class="linkbtn cs-diag" id="cs-diag" style="margin-top:14px;opacity:.6;font-size:12px">Connection diagnostics</button>';
+function wireDiag() { const b = $('cs-diag'); if (b) b.onclick = showDiag; }
 
 // ---------------- PHONE: background reconnect advertising ----------------
 function canAdvertise() {
@@ -189,7 +244,9 @@ export function mountConnectScreen(container, note = '') {
       <button class="btn block" id="cc-go" style="max-width:320px">Connect</button>
       <div id="cc-status" class="cs-status">${note}</div>
       <p class="cs-foot">Both devices must be on the same Wi-Fi. Data stays on your devices — the connection is peer-to-peer.</p>
+      ${diagLink}
     </div>`;
+  wireDiag();
   const code = $('cc-code'), go = $('cc-go'), status = $('cc-status');
   code.focus();
   code.addEventListener('input', () => { code.value = code.value.replace(/\D/g, '').slice(0, 6); });
@@ -217,8 +274,12 @@ export async function startGuestReconnect(container, note = '') {
       <p class="cs-lede">${note ? '<b>' + note + '</b><br>' : ''}Keep <b>Inkvoice open on your phone</b> (same Wi-Fi). This reconnects on its own — no code needed.</p>
       <div id="rc-status" class="cs-status">Looking for your phone…</div>
       <button class="btn ghost" id="rc-manual" style="max-width:320px;margin-top:20px">Enter a code instead</button>
+      <button class="btn ghost" id="rc-forget" style="max-width:320px;margin-top:10px">Forget this phone &amp; start over</button>
+      ${diagLink}
     </div>`;
   $('rc-manual').onclick = () => mountConnectScreen(container);
+  $('rc-forget').onclick = forgetPhone;
+  wireDiag();
 
   const key = getPairKey();
   const off = Sync.onMessage(m => { if (m.t === 'snapshot' && token === reconnectToken) { off(); booted = true; soloNote = ''; bootApp(); } });
@@ -282,6 +343,9 @@ export function initSyncUI(opts) {
     // "Connect a device": first time shows a code; once paired it just re-shares to
     // the known laptop (hub mode), which reconnects automatically without a code.
     window.__syncConnect = () => { if (localStorage.getItem(HAS_PAIRED)) resumeLaptop(); else openHostModal(); };
+    window.__syncUnpair = unpairPhone;
+    window.__syncPaired = () => !!localStorage.getItem(HAS_PAIRED);
+    window.__syncDiag = showDiag;
     Sync.onState((s, err) => {
       if ($('sync-modal')) {                    // first-pairing manual modal is open → drive its UI
         if (s === 'accept') hostBody('accept');
@@ -306,6 +370,8 @@ export function initSyncUI(opts) {
     });
     setTimeout(() => { advertiseTick(); renderHub(); }, 600);   // resume hub mode on launch if that's how we left it
   } else { // guest
+    window.__syncDiag = showDiag;
+    window.__syncForget = forgetPhone;
     Sync.onMessage(m => {
       if (m.t === 'pairkey' && m.key) setPairKey(m.key);
       if (m.t === 'solo') soloNote = 'Your phone is in use right now. Use either your phone OR this computer — not both.';

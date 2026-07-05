@@ -30,16 +30,36 @@ const CHUNK_SIZE = 12_000; // chars per data-channel frame (safely under SCTP li
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const digits6 = () => String(Math.floor(Math.random() * 1_000_000)).padStart(6, '0');
 
+// ---- diagnostic ring buffer (viewable on-device via the "Diagnostics" link) ----
+export const SyncLog = {
+  lines: [],
+  add(msg) {
+    const t = new Date().toISOString().slice(11, 23);
+    this.lines.push(`${t}  ${msg}`);
+    if (this.lines.length > 200) this.lines.shift();
+    try { console.log('[sync]', msg); } catch {}
+    this._cbs.forEach(cb => { try { cb(); } catch {} });
+  },
+  text() { return this.lines.join('\n'); },
+  clear() { this.lines = []; this._cbs.forEach(cb => { try { cb(); } catch {} }); },
+  _cbs: new Set(),
+  onChange(cb) { this._cbs.add(cb); return () => this._cbs.delete(cb); },
+};
+const dbg = m => SyncLog.add(m);
+
 // ---- tiny signaling client (talks to signal.php) ----
 async function sig(action, code, { method = 'GET', body = null, params = {} } = {}) {
   const qs = new URLSearchParams({ a: action, code, ...params }).toString();
-  const res = await fetch(`${SIGNAL_URL}?${qs}`, {
-    method,
-    headers: body != null ? { 'Content-Type': 'text/plain' } : undefined,
-    body: body != null ? body : undefined,
-  });
+  let res;
+  try {
+    res = await fetch(`${SIGNAL_URL}?${qs}`, {
+      method,
+      headers: body != null ? { 'Content-Type': 'text/plain' } : undefined,
+      body: body != null ? body : undefined,
+    });
+  } catch (e) { dbg(`sig ${method} ${action} → NETWORK FAIL (${e.message})`); throw e; }
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) { const e = new Error(data.error || `signal ${res.status}`); e.status = res.status; throw e; }
+  if (!res.ok) { dbg(`sig ${method} ${action} → ${res.status} ${data.error || ''}`); const e = new Error(data.error || `signal ${res.status}`); e.status = res.status; throw e; }
   return data;
 }
 
@@ -62,6 +82,7 @@ class SyncManager {
   onPeer(cb) { this._peerCbs.add(cb); return () => this._peerCbs.delete(cb); }
 
   _set(state, error = null) {
+    if (state !== this.state) dbg(`state: ${this.state} → ${state}${error ? ' (' + error + ')' : ''}`);
     this.state = state; this.error = error;
     clearTimeout(this._connWatch);
     // If we start connecting but never finish (ICE fails / peer vanished), don't
@@ -108,10 +129,12 @@ class SyncManager {
   _newPC() {
     const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
     pc.onconnectionstatechange = () => {
+      dbg(`pc: ${pc.connectionState}`);
       if (['failed', 'disconnected', 'closed'].includes(pc.connectionState) && this.state === 'connected') {
         this._teardown('closed');
       }
     };
+    pc.oniceconnectionstatechange = () => dbg(`ice: ${pc.iceConnectionState}`);
     return pc;
   }
 
@@ -172,6 +195,11 @@ class SyncManager {
     this._alive = true;
     this.autoAccept = autoAccept;
     this.code = code || digits6();
+    dbg(`host: ${code ? 'device-key' : 'random-code'} auto=${autoAccept}${_retried ? ' (retry)' : ''}`);
+    // For a FIXED device-key room, a previous attempt may have left it "claimed but
+    // dead" — which would 409 our offer and 410 the laptop's join (a deadlock the
+    // random-code path never hits). Clear it first so every advertise is fresh.
+    if (code && !_retried) { try { await sig('close', this.code, { method: 'POST' }); } catch {} }
     this.pc = this._newPC();
     const ch = this.pc.createDataChannel('inkvoice', { ordered: true });
     this._wireChannel(ch);
@@ -236,6 +264,7 @@ class SyncManager {
     // Accept either a 6-digit pairing code or a long alphanumeric device key
     // (auto-reconnect), matching signal.php's 6–64 char validation.
     this.code = String(code).replace(/[^a-zA-Z0-9]/g, '');
+    dbg(`join: ${this.code.length > 8 ? 'device-key' : 'code ' + this.code}`);
     if (this.code.length < 6) { this._set('error', 'Enter the 6-digit code'); return false; }
     this.pc = this._newPC();
     this.pc.ondatachannel = (e) => {
@@ -252,6 +281,7 @@ class SyncManager {
               : e.status === 410 ? 'That code was already used' : 'Could not reach the pairing server';
       this._set('error', m); return false;
     }
+    dbg('join: claimed offer, sending answer');
     await this.pc.setRemoteDescription(JSON.parse(offer));
     const answer = await this.pc.createAnswer();
     await this.pc.setLocalDescription(answer);

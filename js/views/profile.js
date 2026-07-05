@@ -55,8 +55,10 @@ export function html(){
       <input id="startFromInvoiceNumber" class="ctrl startno-input" type="number" value="${p.startFromInvoiceNumber}">
     </div>
 
-    <button class="btn block" id="sync-connect-btn" style="margin-top:16px">${Icon.link || ''} Connect a device</button>
-    <div class="section-sub" style="margin:6px 2px 0">Use your laptop or tablet to create invoices — it mirrors this phone over the same Wi-Fi.</div>
+    <button class="btn block" id="sync-connect-btn" style="margin-top:16px">${Icon.link || ''} ${localStorage.getItem('inkvoice_has_paired') ? 'Reconnect laptop' : 'Connect a device'}</button>
+    <div class="section-sub" style="margin:6px 2px 0">Use your laptop or tablet to create invoices — it mirrors this phone over the same Wi-Fi. Use <b>either</b> your phone or your laptop, never both at once.</div>
+    ${localStorage.getItem('inkvoice_has_paired') ? `<button class="btn ghost block" id="sync-unpair-btn" style="margin-top:10px">Unpair / forget laptop</button>` : ''}
+    <button class="linkbtn" id="sync-diag-btn" style="margin-top:8px;opacity:.6;font-size:12px">Connection diagnostics</button>
 
     <div class="two" style="margin-top:16px">
       <button class="btn" id="backup">Backup Now</button>
@@ -114,7 +116,13 @@ export function mount(){
 
   $('sync-connect-btn')?.addEventListener('click', () => {
     if(window.__syncConnect) window.__syncConnect();
+    else if(window.__syncForget) window.__syncForget();   // laptop: reconnect/forget flow
     else toast('Device connect is available in the installed phone app');
+  });
+  $('sync-unpair-btn')?.addEventListener('click', () => { window.__syncUnpair?.(); toast('Unpaired'); });
+  $('sync-diag-btn')?.addEventListener('click', () => {
+    if(window.__syncDiag) window.__syncDiag();
+    else toast('Diagnostics are available in the app');
   });
 
   $('backup').addEventListener('click', () => {
