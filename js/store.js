@@ -37,9 +37,48 @@ const read = (k, fallback) => {
 };
 const write = (k, v) => localStorage.setItem(k, JSON.stringify(v));
 
+// ----- Change bus (drives device sync) -----
+// Every local write emits a change so the sync layer can broadcast it to a
+// connected device. While `muted` (applying a remote change) we DON'T emit,
+// which prevents an infinite echo between the two devices.
+const K_CARD = 'inkvoice_card_color';
+const _changeCbs = new Set();
+let _muted = false;
+export const onStoreChange = (cb) => { _changeCbs.add(cb); return () => _changeCbs.delete(cb); };
+function emit(evt){ if(!_muted) _changeCbs.forEach(cb => { try{ cb(evt); }catch{} }); }
+const silently = (fn) => { const prev = _muted; _muted = true; try{ return fn(); } finally { _muted = prev; } };
+
+// ----- Biz-card colour (routed through the store so it syncs) -----
+export const getCardColor = () => localStorage.getItem(K_CARD) || '#FFFFFF';
+export function saveCardColor(hex){ localStorage.setItem(K_CARD, hex); emit({entity:'card',action:'upsert',payload:{color:hex}}); }
+
+// ----- Full mirror: snapshot / apply (phone is boss) -----
+export function snapshot(){
+  return { profile:read(K.PROFILE,{}), clients:read(K.CLIENTS,[]), invoices:read(K.INVOICES,[]), card:getCardColor() };
+}
+export function applySnapshot(s){
+  silently(() => {
+    if(s.profile)  write(K.PROFILE, { ...DEFAULT_PROFILE, ...s.profile });
+    if(s.clients)  write(K.CLIENTS, s.clients);
+    if(s.invoices) write(K.INVOICES, s.invoices);
+    if(s.card)     localStorage.setItem(K_CARD, s.card);
+  });
+}
+// Apply one incoming change from the peer (never re-broadcast).
+export function applyOp(op){
+  if(!op) return;
+  silently(() => {
+    if(op.entity==='invoice' && op.action==='delete') deleteInvoice(op.payload.id);
+    else if(op.entity==='invoice') saveInvoice(op.payload);
+    else if(op.entity==='profile') saveProfile(op.payload);
+    else if(op.entity==='client')  saveClient(op.payload);
+    else if(op.entity==='card')    localStorage.setItem(K_CARD, op.payload.color);
+  });
+}
+
 // ----- Profile -----
 export const getProfile = () => ({ ...DEFAULT_PROFILE, ...(read(K.PROFILE, {})) });
-export const saveProfile = (p) => write(K.PROFILE, { ...DEFAULT_PROFILE, ...p });
+export function saveProfile(p){ const merged = { ...DEFAULT_PROFILE, ...p }; write(K.PROFILE, merged); emit({entity:'profile',action:'upsert',payload:merged}); return merged; }
 
 // ----- Clients -----
 export const getClients = () => read(K.CLIENTS, []);
@@ -48,6 +87,7 @@ export function saveClient(c){
   const i = list.findIndex(x => x.id === c.id);
   if(i>=0) list[i] = c; else list.push(c);
   write(K.CLIENTS, list);
+  emit({entity:'client',action:'upsert',payload:c});
   return c;
 }
 export const findClientByName = (name) =>
@@ -61,10 +101,12 @@ export function saveInvoice(inv){
   const i = list.findIndex(x => x.id === inv.id);
   if(i>=0) list[i] = inv; else list.push(inv);
   write(K.INVOICES, list);
+  emit({entity:'invoice',action:'upsert',payload:inv});
   return inv;
 }
 export function deleteInvoice(id){
   write(K.INVOICES, getInvoices().filter(i => i.id !== id));
+  emit({entity:'invoice',action:'delete',payload:{id}});
 }
 
 // ----- Sequential numbering (per type, like the Android counters) -----

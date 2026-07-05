@@ -246,8 +246,9 @@ Decisions locked with the user:
   view re-renders on incoming ops; `SYNC_URL` const → `https://inkvoiceapp.com/signal.php`;
   bump SW + add files to SHELL. `sw.js` already bypasses cross-origin so signal.php is uncached.
 - **Build in 3 phases:** (1) ✅ **DONE** signaling + raw data-channel connect + Accept prompt;
-  (2) full mirror + live deltas + store event bus; (3) UX polish (laptop connect screen,
-  status/reconnect, auto-reconnect token) + manual 2-device checklist.
+  (2) ✅ **DONE** full mirror + live deltas + store event bus; (3) **NEXT** UX polish (laptop
+  connect screen replacing the desktop dead-end, phone "Connect a device" modal,
+  status/reconnect states, auto-reconnect token) + manual 2-device checklist.
 - **Phase 1 status (2026-07-05):** `signal.php` (repo root; deploy = manual upload to
   Hostinger `public_html/` → served at `https://inkvoiceapp.com/signal.php`, CROSS-origin from
   the app at app.inkvoiceapp.com, hence CORS in the file) + `js/sync.js` (WebRTC transport,
@@ -261,6 +262,22 @@ Decisions locked with the user:
   on Hostinger PHP 8.3 curl-tested — all endpoints/edge cases pass. Test scripts are throwaway
   (scratchpad, not committed). **Gotcha:** don't load the app's `index.html` in unit tests —
   its SW `controllerchange` reloads the page and wipes injected globals; use a bare 404 doc.
+- **Phase 2 status (2026-07-05):** data mirror plumbing. `store.js` gained a change bus
+  (`onStoreChange`), a `_muted` flag + `silently()` so applying a remote change never echoes
+  back, `snapshot()`/`applySnapshot()`/`applyOp()`, and `getCardColor()`/`saveCardColor()`
+  (biz-card colour now routed through the store; `cards.js` emits only on slider `change`,
+  not every drag frame). All four writers (saveInvoice/deleteInvoice/saveProfile/saveClient)
+  now `emit`. `js/syncbridge.js` glues transport↔data: host pushes `snapshot()` on connect
+  (phone is boss), local changes → `op` messages, incoming `op`/`snapshot` applied silently +
+  `rerenderLive()`. `app.js` calls `initSyncBridge(rerenderLive)`; `rerenderLive` repaints the
+  current view EXCEPT `/create`, `/profile`, `/view/*` (don't clobber a form mid-edit).
+  `sync.js` send()/recv now **chunk** large messages (CHUNK_SIZE 12000) so a full snapshot with
+  base64 logos doesn't blow the data-channel message limit. **SW → v18** (+sync.js, syncbridge.js
+  in SHELL). **Verified** (Playwright 2-context, real WebRTC, mock signaler): snapshot mirror
+  (name/counter/invoices/card), live new-invoice both directions, no echo loop (both converge
+  to 3), delete + profile propagation, and a 300KB chunked logo snapshot arriving byte-intact.
+  Real app boots clean with the new imports. **Phase 3 (UI to actually trigger pairing) is the
+  only thing left before it's user-usable** — today nothing calls host()/join() outside tests.
 - **Numbering worry solved:** laptop reads the phone's synced counters live, so `peekNextNumber`
   is always correct. (Rare simultaneous-create race → later hardening: phone as sole number
   issuer.) **Can't fully test real-LAN WebRTC headlessly** → user does a 2-device WiFi check.

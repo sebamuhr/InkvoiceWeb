@@ -22,6 +22,7 @@ const ICE_SERVERS = [{ urls: 'stun:stun.l.google.com:19302' }];
 
 const POLL_MS = 900;      // how often each side re-asks the mailbox during setup
 const SETUP_TIMEOUT = 90_000;
+const CHUNK_SIZE = 12_000; // chars per data-channel frame (safely under SCTP limits)
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const digits6 = () => String(Math.floor(Math.random() * 1_000_000)).padStart(6, '0');
@@ -62,13 +63,20 @@ class SyncManager {
     this._stateCbs.forEach(cb => { try { cb(state, error); } catch {} });
   }
 
-  // Send an app-level protocol message over the P2P channel.
+  // Send an app-level protocol message over the P2P channel. Large messages
+  // (e.g. a full snapshot with base64 logos) are split into chunks that stay
+  // safely under the data-channel's per-message size limit, then reassembled
+  // on the far side.
   send(obj) {
-    if (this.channel && this.channel.readyState === 'open') {
-      this.channel.send(JSON.stringify(obj));
-      return true;
+    if (!(this.channel && this.channel.readyState === 'open')) return false;
+    const s = JSON.stringify(obj);
+    if (s.length <= CHUNK_SIZE) { this.channel.send(s); return true; }
+    const id = Math.random().toString(36).slice(2);
+    const n = Math.ceil(s.length / CHUNK_SIZE);
+    for (let i = 0; i < n; i++) {
+      this.channel.send(JSON.stringify({ __c: id, i, n, d: s.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE) }));
     }
-    return false;
+    return true;
   }
 
   _newPC() {
@@ -83,12 +91,27 @@ class SyncManager {
 
   _wireChannel(ch) {
     this.channel = ch;
+    this._chunks = {};   // id -> { n, parts:[] }
     ch.onmessage = (e) => {
-      let msg; try { msg = JSON.parse(e.data); } catch { return; }
-      this._handleControl(msg);
-      this._msgCbs.forEach(cb => { try { cb(msg); } catch {} });
+      let raw; try { raw = JSON.parse(e.data); } catch { return; }
+      if (raw && raw.__c) {              // a chunk of a larger message
+        const b = (this._chunks[raw.__c] ||= { n: raw.n, parts: [] });
+        b.parts[raw.i] = raw.d;
+        if (b.parts.filter(x => x !== undefined).length === b.n) {
+          delete this._chunks[raw.__c];
+          let msg; try { msg = JSON.parse(b.parts.join('')); } catch { return; }
+          this._dispatch(msg);
+        }
+        return;
+      }
+      this._dispatch(raw);
     };
     ch.onclose = () => { if (this.state === 'connected') this._teardown('closed'); };
+  }
+
+  _dispatch(msg) {
+    this._handleControl(msg);
+    this._msgCbs.forEach(cb => { try { cb(msg); } catch {} });
   }
 
   // Handshake messages the transport itself understands; everything else is

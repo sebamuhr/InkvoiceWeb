@@ -1,4 +1,4 @@
-import { getProfile } from '../store.js';
+import { getProfile, getCardColor, saveCardColor } from '../store.js';
 import { esc, toast } from '../util.js';
 import { Icon } from '../icons.js';
 
@@ -40,7 +40,7 @@ export function html(){
     return `<div class="screen"><div class="empty">${Icon.bizcard}<div>Set up your business profile first.</div>
       <button class="btn" style="margin-top:14px" onclick="nav('/profile')">Go to Profile</button></div></div>`;
   }
-  bgColor = localStorage.getItem(COLOR_KEY) || '#FFFFFF';
+  bgColor = getCardColor();
 
   const lines = [p.ownerName, p.email, p.phone, p.website].filter(Boolean)
     .map(l => `<div class="bc-line">${esc(l)}</div>`).join('');
@@ -85,6 +85,8 @@ export function mount(){
   const slider = document.getElementById('cc-slider');
   slider.value = String(Math.round(nearestPos(bgColor) * 1000));
   slider.addEventListener('input', e => applyColor(colorAt(e.target.value / 1000)));
+  // Persist + sync only the final colour (not every drag frame).
+  slider.addEventListener('change', e => saveCardColor(colorAt(e.target.value / 1000)));
   applyColor(bgColor);
 
   document.getElementById('share').addEventListener('click', () => shareCard(p, bgColor));

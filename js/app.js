@@ -9,6 +9,7 @@ import * as View from './views/view.js';
 import * as Profile from './views/profile.js';
 import * as Cards from './views/cards.js';
 import * as Landing from './views/landing.js';
+import { initSyncBridge } from './syncbridge.js';
 
 const state = { route:'/', key:'' };
 
@@ -90,6 +91,16 @@ function render(){
   app.innerHTML = back + `<div class="fade">${match.view.html(ctx)}</div>` + tabbar(match.key);
   if(match.view.mount) match.view.mount(ctx);
 }
+
+// Device sync: apply changes from a connected peer and refresh the screen —
+// but never repaint a screen the user is actively filling in (Create/Profile)
+// or the full-screen PDF viewer, which would wipe their in-progress work.
+function rerenderLive(){
+  const path = state.route.split('?')[0];
+  if(path==='/create' || path==='/profile' || path.startsWith('/view/')) return;
+  render();
+}
+initSyncBridge(rerenderLive);
 
 // Material field focus highlight + live char counters (delegated, once)
 document.addEventListener('focusin', e => {
