@@ -15,10 +15,13 @@
 
 const SIGNAL_URL = window.__INKVOICE_SIGNAL_URL || 'https://inkvoiceapp.com/signal.php';
 
-// Public STUN helps candidate gathering; on the same WiFi the media path is
-// direct (host/mDNS candidates) and no data is relayed. No TURN on purpose —
-// we never want invoice data bouncing through a third party.
-const ICE_SERVERS = [{ urls: 'stun:stun.l.google.com:19302' }];
+// WiFi-only: NO ICE servers at all — no STUN, no TURN, nothing external is
+// ever contacted. Devices connect using local-network (host / mDNS `.local`)
+// candidates only, so this works when both are on the same WiFi and never
+// otherwise. Nothing about the connection (not even setup) leaves the LAN
+// except the ~1KB code handshake via signal.php. (Trade-off: a few locked-down
+// networks that block client-to-client mDNS/multicast won't pair — accepted.)
+const ICE_SERVERS = [];
 
 const POLL_MS = 900;      // how often each side re-asks the mailbox during setup
 const SETUP_TIMEOUT = 90_000;

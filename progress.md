@@ -40,7 +40,7 @@
 - **Service worker is network-first** (`sw.js`): it always tries the network first so new
   code loads immediately when online, and falls back to cache when offline. On any file
   change bump the cache constant `const CACHE = 'inkvoice-vNN'` so old caches are purged.
-  **Current: `inkvoice-v19`.**
+  **Current: `inkvoice-v20`.**
 - If you add/remove a file, also update the `SHELL` array in `sw.js`.
 
 ---
@@ -293,6 +293,13 @@ Decisions locked with the user:
   screen. Screens screenshotted — look clean/on-brand. **Test gotcha:** set
   `window.__swReloaded=true` via addInitScript or app.js's one-time SW `controllerchange`
   reload wipes body-level modals mid-test.
+- **WiFi-only decision (2026-07-05):** `sync.js` `ICE_SERVERS = []` — NO STUN/TURN, nothing
+  external contacted; pairing uses local host/mDNS `.local` candidates only, so it works only
+  when both devices share a WiFi. **CAVEAT:** the headless sandbox CANNOT validate the no-STUN
+  path (its net namespace blocks local-candidate/multicast between browser contexts) — only the
+  STUN path was reproducible. So real-device testing is the validator. **One-line fallback** if
+  a user's network blocks local P2P: set `ICE_SERVERS = [{urls:'stun:stun.l.google.com:19302'}]`
+  (STUN is metadata-only, setup-only — no data through it). **SW → v20.**
 - **Numbering worry solved:** laptop reads the phone's synced counters live, so `peekNextNumber`
   is always correct. (Rare simultaneous-create race → later hardening: phone as sole number
   issuer.) **Can't fully test real-LAN WebRTC headlessly** → user does a 2-device WiFi check.
