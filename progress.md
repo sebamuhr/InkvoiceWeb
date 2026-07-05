@@ -40,7 +40,7 @@
 - **Service worker is network-first** (`sw.js`): it always tries the network first so new
   code loads immediately when online, and falls back to cache when offline. On any file
   change bump the cache constant `const CACHE = 'inkvoice-vNN'` so old caches are purged.
-  **Current: `inkvoice-v22`.**
+  **Current: `inkvoice-v23`.**
 - If you add/remove a file, also update the `SHELL` array in `sw.js`.
 
 ---
@@ -326,6 +326,16 @@ Decisions locked with the user:
   `state==='connected'`. **SW → v22.** **Verified** (Playwright, real app UI + WebRTC + mock):
   pair → disconnect → silent auto-reconnect (no code, no prompt) → data mirrored → live deltas;
   manual pairing + full-mirror regressions still green.
+- **Connection-longevity mitigations (2026-07-05):** real-world report — the phone (host) PWA
+  got suspended after a few minutes (screen auto-lock) and the link dropped. HARD LIMIT: a web
+  app CANNOT hold a connection while the phone is locked/backgrounded (JS is suspended); only a
+  native background service could — that's the Android-app path. Mitigations added in
+  `syncui.js`: (1) **Screen Wake Lock** (`navigator.wakeLock`) held ONLY while actively
+  connected (both roles), re-acquired on `visibilitychange`→visible (locks auto-release when
+  hidden) — stops the screen auto-lock that was the main killer; (2) on the phone, coming back
+  to the foreground **immediately re-advertises** (`advertiseTick`) so a waiting laptop
+  reconnects in seconds; (3) phone "connected" panel now hints "keep Inkvoice open". **SW → v23.**
+  Verified no regressions (reconnect + boot). signal.php UNCHANGED this round (app bundle only).
 - **Numbering worry solved:** laptop reads the phone's synced counters live, so `peekNextNumber`
   is always correct. (Rare simultaneous-create race → later hardening: phone as sole number
   issuer.) **Can't fully test real-LAN WebRTC headlessly** → user does a 2-device WiFi check.

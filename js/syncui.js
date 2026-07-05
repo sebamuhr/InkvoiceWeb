@@ -27,6 +27,21 @@ const elFrom = html => { const d = document.createElement('div'); d.innerHTML = 
 const removeEl = id => { const e = $(id); if (e) e.remove(); };
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
+// Screen Wake Lock — a phone's screen turning off is the #1 reason the OS
+// suspends the PWA and drops the link. Hold the screen awake ONLY while a device
+// is actively connected (to save battery), and re-acquire it when the app comes
+// back to the foreground (the lock auto-releases whenever the page is hidden).
+let wakeLock = null;
+async function acquireWake() {
+  try {
+    if ('wakeLock' in navigator && !wakeLock && document.visibilityState === 'visible') {
+      wakeLock = await navigator.wakeLock.request('screen');
+      wakeLock.addEventListener('release', () => { wakeLock = null; });
+    }
+  } catch {}
+}
+async function releaseWake() { try { const w = wakeLock; wakeLock = null; if (w) await w.release(); } catch {} }
+
 function deviceId() {
   let id = localStorage.getItem(DEVICE_KEY);
   if (!id) {
@@ -83,6 +98,7 @@ function hostBody(kind, data = {}) {
   } else if (kind === 'connected') {
     body.innerHTML = `
       <div class="sync-note">✓ <b>Connected.</b> This device now mirrors your phone over Wi-Fi, and will reconnect on its own next time. Nothing leaves your devices.</div>
+      <div class="sync-note muted" style="margin-top:8px">Keep Inkvoice open on this phone to stay connected — it reconnects automatically when you come back.</div>
       <button class="btn block" id="sync-disc" style="margin-top:14px">Disconnect</button>`;
     $('sync-disc').onclick = () => { Sync.disconnect(); removeEl('sync-modal'); manualMode = false; };
   } else if (kind === 'error') {
@@ -171,6 +187,17 @@ export function initSyncUI(opts) {
   role = opts.role;
   bootApp = opts.bootApp || (() => {});
   appEl = opts.appEl || null;
+
+  // Keep the screen awake while actively connected (both roles); let it sleep otherwise.
+  Sync.onState(s => { if (s === 'connected') acquireWake(); else if (s === 'closed' || s === 'error') releaseWake(); });
+
+  // Coming back to the foreground: re-take the wake lock if still connected, and
+  // if we're the phone, immediately re-advertise so a waiting device reconnects fast.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return;
+    if (Sync.state === 'connected') acquireWake();
+    else if (role === 'phone') advertiseTick();
+  });
 
   if (role === 'phone') {
     window.__syncConnect = openHostModal;
