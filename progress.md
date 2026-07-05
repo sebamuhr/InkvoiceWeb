@@ -422,6 +422,17 @@ Decisions locked with the user:
   `window.__syncUnpair/__syncForget/__syncDiag/__syncPaired` exposed for Profile. **Verified**
   `reset_test` (diag shows lines, laptop forget → code screen, phone unpair clears keys) + full
   suite green. **SW → v29.**
+- **⚠️ DEPLOY LESSON — always ship a COMPLETE bundle (2026-07-05):** shipping partial zips
+  (only the changed js/css) broke a live device: extracting them over the app folder left a
+  MISMATCHED mix of old+new files, and new `syncui.js`'s `import { SyncLog }` against an old
+  cached `sync.js` (no such export) threw → whole app dead, "won't connect at all". The partial
+  zips also lacked `icons/`+`manifest.webmanifest`, so the installed PWA reverted to the default
+  Android icon. FIX: the deploy bundle is now the FULL app payload — `index.html`,
+  `manifest.webmanifest`, `sw.js`, `css/ js/ icons/ vendor/ pdfsamples/` (NOT `signal.php` /
+  `site/` / `CNAME` / docs). Boot-tested the bundle end-to-end (app renders, 3 manifest icons,
+  icon-192 loads, 0 pageerrors, 0 4xx). **ALWAYS build `_upload/app/` = complete tree; never a
+  subset.** Icon note: an already-installed PWA caches its icon — the user must reinstall
+  (remove from home screen → reopen → re-add) to pick the Inkvoice icon back up.
 - **Numbering worry solved:** laptop reads the phone's synced counters live, so `peekNextNumber`
   is always correct. (Rare simultaneous-create race → later hardening: phone as sole number
   issuer.) **Can't fully test real-LAN WebRTC headlessly** → user does a 2-device WiFi check.
