@@ -51,6 +51,12 @@ export function compute(items, taxPct=0, discountPct=0, advance=0){
 
 export const STATUSES = ['Pending','Paid','Overdue','Cancelled'];
 
+// Format checks: email needs name@domain.tld; website needs at least domain.tld
+// (optional http(s):// and www.). Both treat blank as "not invalid" — callers
+// decide whether a field is required.
+export const isEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v ?? '').trim());
+export const isWebsite = (v) => /^(https?:\/\/)?([\w-]+\.)+[a-z]{2,}(\/[^\s]*)?$/i.test(String(v ?? '').trim());
+
 // Escape user text for safe HTML injection
 export function esc(s){
   return String(s ?? '').replace(/[&<>"']/g, c =>

@@ -1,5 +1,5 @@
 import { getProfile, saveProfile, CURRENCIES, LANGUAGES, TAX_COLORS } from '../store.js';
-import { esc, toast } from '../util.js';
+import { esc, toast, isEmail, isWebsite } from '../util.js';
 import { Icon } from '../icons.js';
 import { mfield, mselect } from '../ui.js';
 
@@ -24,7 +24,9 @@ export function html(){
     ${mfield({id:'ownerName',label:'Owner Name',value:p.ownerName,attrs:'autocapitalize="words"'})}
     <div class="counter" style="margin-top:-2px">Enter your business name, your name, or both <span style="color:var(--red)">*</span></div>
     ${mfield({id:'email',label:'Email',required:true,type:'email',value:p.email})}
+    <div class="field-warn hidden" id="warn-email">Enter a valid email — like name@example.com</div>
     ${mfield({id:'website',label:'Website',value:p.website})}
+    <div class="field-warn hidden" id="warn-website">Enter a valid website — like www.example.com</div>
     ${mfield({id:'phone',label:'Phone Number <span class="hint-b2g">(B2G only *)</span>',value:p.phone})}
     ${mfield({id:'address',label:'Address',textarea:true,value:p.address,counter:90})}
 
@@ -101,6 +103,15 @@ export function mount(){
   $('tax-add').addEventListener('click', () => { if(taxNumbers.length>=4) return; taxNumbers.push({label:'',number:'',color:TAX_COLORS[taxNumbers.length]}); refreshTax(); });
   wireTax();
 
+  // Live format validation: warn when a field has content but the format is wrong.
+  const liveWarn = (fieldId, warnId, ok) => {
+    const f = $(fieldId), w = $(warnId); if(!f || !w) return;
+    const check = () => w.classList.toggle('hidden', !(f.value.trim() && !ok(f.value)));
+    f.addEventListener('input', check); f.addEventListener('blur', check);
+  };
+  liveWarn('email', 'warn-email', isEmail);
+  liveWarn('website', 'warn-website', isWebsite);
+
   $('sync-connect-btn')?.addEventListener('click', () => {
     if(window.__syncConnect) window.__syncConnect();
     else toast('Device connect is available in the installed phone app');
@@ -131,9 +142,9 @@ export function mount(){
     // name, plus a valid email. Otherwise the profile would "save" but the tabs would
     // stay locked with no explanation.
     const nameOk = p.businessName || p.ownerName;
-    const emailOk = p.email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(p.email);
     if(!nameOk){ toast('Business or owner name is required'); return; }
-    if(!emailOk){ toast('A valid email is required'); return; }
+    if(!isEmail(p.email)){ toast('A valid email is required — like name@example.com'); $('warn-email')?.classList.remove('hidden'); return; }
+    if(p.website && !isWebsite(p.website)){ toast('Enter a valid website (e.g. www.example.com) or leave it empty'); $('warn-website')?.classList.remove('hidden'); return; }
     saveProfile(p);
     toast('Profile saved');
     // Profile is now valid → go to Home. The re-render unlocks Create/Invoices/Biz Card

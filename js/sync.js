@@ -63,8 +63,29 @@ class SyncManager {
 
   _set(state, error = null) {
     this.state = state; this.error = error;
+    clearTimeout(this._connWatch);
+    // If we start connecting but never finish (ICE fails / peer vanished), don't
+    // hang forever holding a claimed room — bail so we can re-advertise/retry.
+    if (state === 'connecting') {
+      this._connWatch = setTimeout(() => { if (this.state === 'connecting') this._teardown('error', 'Connection timed out'); }, 20000);
+    }
+    if (state === 'connected') this._startHeartbeat(); else this._stopHeartbeat();
     this._stateCbs.forEach(cb => { try { cb(state, error); } catch {} });
   }
+
+  // Heartbeat: a dead peer (phone suspended, WiFi dropped) often leaves the state
+  // stuck at 'connected' with no event. Ping every 5s; if nothing has arrived for
+  // 15s, declare the link dead so both sides fall back to reconnect/advertise.
+  _startHeartbeat() {
+    this._stopHeartbeat();
+    this._lastRx = Date.now();
+    this._hb = setInterval(() => {
+      if (!this.channel || this.channel.readyState !== 'open') return;
+      if (Date.now() - this._lastRx > 15000) { this._teardown('closed'); return; }
+      try { this.channel.send(JSON.stringify({ t: '__ping' })); } catch {}
+    }, 5000);
+  }
+  _stopHeartbeat() { clearInterval(this._hb); this._hb = null; }
 
   // Send an app-level protocol message over the P2P channel. Large messages
   // (e.g. a full snapshot with base64 logos) are split into chunks that stay
@@ -96,6 +117,7 @@ class SyncManager {
     this.channel = ch;
     this._chunks = {};   // id -> { n, parts:[] }
     ch.onmessage = (e) => {
+      this._lastRx = Date.now();        // any inbound traffic = the link is alive
       let raw; try { raw = JSON.parse(e.data); } catch { return; }
       if (raw && raw.__c) {              // a chunk of a larger message
         const b = (this._chunks[raw.__c] ||= { n: raw.n, parts: [] });
@@ -113,6 +135,8 @@ class SyncManager {
   }
 
   _dispatch(msg) {
+    if (msg && msg.t === '__ping') { try { this.channel.send(JSON.stringify({ t: '__pong' })); } catch {} return; }
+    if (msg && msg.t === '__pong') return;   // liveness only — already refreshed _lastRx
     this._handleControl(msg);
     this._msgCbs.forEach(cb => { try { cb(msg); } catch {} });
   }
@@ -141,7 +165,7 @@ class SyncManager {
   // opts.code    — fixed room key (used for auto-reconnect under the device key);
   //                omitted → a fresh random 6-digit code for first pairing.
   // opts.autoAccept — skip the human Accept prompt (trusted reconnect only).
-  async host({ code = null, autoAccept = false } = {}) {
+  async host({ code = null, autoAccept = false, _retried = false } = {}) {
     this._reset('host');
     this._alive = true;
     this.autoAccept = autoAccept;
@@ -156,8 +180,13 @@ class SyncManager {
     try {
       await sig('offer', this.code, { method: 'POST', body: JSON.stringify(offer) });
     } catch (e) {
-      // 409 = someone is already pairing under this random code; pick another.
-      if (e.status === 409 && !code) return this.host({ autoAccept });
+      // 409 = a room already exists under this code.
+      if (e.status === 409 && !code) return this.host({ autoAccept });   // random code → just pick another
+      if (e.status === 409 && code && !_retried) {
+        // Our own fixed device key still has a stale (claimed, dead) room — clear it and retry once.
+        try { await sig('close', this.code, { method: 'POST' }); } catch {}
+        return this.host({ code, autoAccept, _retried: true });
+      }
       this._teardown('error', 'Could not reach the pairing server'); throw e;
     }
 
@@ -258,6 +287,8 @@ class SyncManager {
   }
   _teardownQuiet() {
     this._alive = false;
+    this._stopHeartbeat();
+    clearTimeout(this._connWatch);
     try { this.channel && this.channel.close(); } catch {}
     try { this.pc && this.pc.close(); } catch {}
     this.channel = null; this.pc = null;

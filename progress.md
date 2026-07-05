@@ -40,7 +40,7 @@
 - **Service worker is network-first** (`sw.js`): it always tries the network first so new
   code loads immediately when online, and falls back to cache when offline. On any file
   change bump the cache constant `const CACHE = 'inkvoice-vNN'` so old caches are purged.
-  **Current: `inkvoice-v24`.**
+  **Current: `inkvoice-v25`.**
 - If you add/remove a file, also update the `SHELL` array in `sw.js`.
 
 ---
@@ -346,6 +346,24 @@ Decisions locked with the user:
   ("open Inkvoice on your phone… links back automatically, no code"). **SW → v24.** Verified:
   reconnect regression green; hub screen screenshotted, looks right. NOTE: true always-on
   (phone locked / app closed) still needs the native Android background service.
+- **Reconnect robustness + format validation (2026-07-05):** fixed a real "laptop loops
+  'Looking for your phone' and never reconnects" bug + added email/website warnings.
+  - **Reconnect bug root causes & fixes (`sync.js`):** (1) after the phone was suspended it sat
+    at a STALE `state:'connected'` (dead peer, no event) so it never re-advertised → added a
+    **heartbeat** (`__ping`/`__pong` every 5s; if no inbound for 15s → `_teardown('closed')`),
+    plus `visibilitychange` on the phone force-drops a stale 'connected' when
+    `pc.connectionState!=='connected'` and re-advertises. (2) an ICE failure left a side stuck
+    at `'connecting'` forever holding a `claimed` room → added a **20s connect watchdog** in
+    `_set`. (3) the phone couldn't re-advertise because its OWN stale claimed room under the
+    device key returned 409 → `host()` now `sig('close')`+retries once on a 409 with a fixed
+    code. `__ping`/`__pong` are filtered in `_dispatch` (never reach the app). **Verified:**
+    abrupt peer-death (pc.close, no `bye`) auto-recovers in ~3s with live sync restored; clean
+    reconnect + mirror + UI regressions all still green.
+  - **Email/website validation (`util.js` `isEmail`/`isWebsite`, `.field-warn` CSS):** live
+    inline warnings under Profile email + website and Create client-email; Save blocks on a bad
+    email (required) or a non-empty bad website; PDF generation blocks on a bad client email.
+    Website accepts optional `http(s)://` + `www.`, requires `domain.tld`. **Verified** (17
+    checks: regex truth table + UI warnings show/hide + save/PDF blocked). **SW → v25.**
 - **Numbering worry solved:** laptop reads the phone's synced counters live, so `peekNextNumber`
   is always correct. (Rare simultaneous-create race → later hardening: phone as sole number
   issuer.) **Can't fully test real-LAN WebRTC headlessly** → user does a 2-device WiFi check.

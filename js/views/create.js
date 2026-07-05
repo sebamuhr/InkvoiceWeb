@@ -1,6 +1,6 @@
 import { getProfile, getClients, findClientByName, saveClient, saveInvoice,
          getInvoice, peekNextNumber, consumeNumber, uid, PDF_STYLES } from '../store.js';
-import { compute, money2, currencySymbol, toInputDate, fromInputDate, todayMs, plusDaysMs, esc, toast } from '../util.js';
+import { compute, money2, currencySymbol, toInputDate, fromInputDate, todayMs, plusDaysMs, esc, toast, isEmail } from '../util.js';
 import { Icon } from '../icons.js';
 import { mfield } from '../ui.js';
 
@@ -59,6 +59,7 @@ export function html(ctx){
     ${mfield({id:'c-name',label:'Client Name',required:true,value:draft.clientName,list:'clients',attrs:'autocomplete="off" autocapitalize="words"'})}
     <datalist id="clients">${clients.map(c=>`<option value="${esc(c.name)}">`).join('')}</datalist>
     ${mfield({id:'c-email',label:'Email',type:'email',value:draft.clientEmail})}
+    <div class="field-warn hidden" id="warn-cemail">Enter a valid email — like name@example.com</div>
     ${mfield({id:'c-vat',label:'Tax Number'+(draft.b2g?' *':''),value:draft.clientVatId})}
     ${mfield({id:'c-addr',label:'Address'+(draft.b2g?' *':''),textarea:true,value:draft.clientAddress,counter:90})}
 
@@ -161,6 +162,9 @@ export function mount(ctx){
   });
   bind('c-email','clientEmail'); bind('c-vat','clientVatId'); bind('c-addr','clientAddress');
   bind('b-ref','buyerReference'); bind('b-dept','departmentArea');
+  // Live email-format warning on the client email.
+  const cEmail = $('c-email'), cWarn = $('warn-cemail');
+  if(cEmail && cWarn){ const chk = () => cWarn.classList.toggle('hidden', !(cEmail.value.trim() && !isEmail(cEmail.value))); cEmail.addEventListener('input', chk); cEmail.addEventListener('blur', chk); }
   $('d-date').addEventListener('change', e => draft.creationDateMillis = fromInputDate(e.target.value));
   $('d-due').addEventListener('change', e => draft.dueDateMillis = fromInputDate(e.target.value));
   numBind('f-adv','advancePayment'); numBind('f-disc','discountPercent');
@@ -246,6 +250,7 @@ export function mount(ctx){
   }
   function validate(){
     if(!draft.clientName.trim()){ toast('Client name is required'); return false; }
+    if(draft.clientEmail.trim() && !isEmail(draft.clientEmail)){ toast('Enter a valid client email or leave it empty'); $('warn-cemail')?.classList.remove('hidden'); return false; }
     if(!draft.items.some(i=>i.description.trim())){ toast('Add at least one item'); return false; }
     if(draft.b2g){
       if(!draft.dueDateMillis){ toast('Due date is required for B2G'); return false; }

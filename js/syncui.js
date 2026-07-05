@@ -210,12 +210,15 @@ export function initSyncUI(opts) {
   // Keep the screen awake while actively connected (both roles); let it sleep otherwise.
   Sync.onState(s => { if (s === 'connected') acquireWake(); else if (s === 'closed' || s === 'error') releaseWake(); });
 
-  // Coming back to the foreground: re-take the wake lock if still connected, and
-  // if we're the phone, immediately re-advertise so a waiting device reconnects fast.
+  // Coming back to the foreground after the OS suspended us: the link is usually
+  // dead even though state may still read 'connected'. Detect that, tear it down,
+  // and recover fast (phone re-advertises; guest's own handler re-enters reconnect).
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState !== 'visible') return;
-    if (Sync.state === 'connected') acquireWake();
-    else if (role === 'phone') advertiseTick();
+    const reallyConnected = Sync.state === 'connected' && Sync.pc && Sync.pc.connectionState === 'connected';
+    if (reallyConnected) { acquireWake(); return; }
+    if (Sync.state === 'connected') Sync.disconnect();   // stale 'connected' → drop it
+    if (role === 'phone') setTimeout(advertiseTick, 300);
   });
 
   if (role === 'phone') {
