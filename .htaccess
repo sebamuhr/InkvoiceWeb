@@ -1,0 +1,10 @@
+# Inkvoice PWA — server config for Hostinger/LiteSpeed.
+# The web app manifest MUST be served as application/manifest+json. By default the
+# server sent it as text/plain, which makes browsers ignore the manifest and fall
+# back to a generated (default) home-screen icon.
+<IfModule mod_mime.c>
+  AddType application/manifest+json .webmanifest
+</IfModule>
+<Files "manifest.webmanifest">
+  ForceType application/manifest+json
+</Files>
