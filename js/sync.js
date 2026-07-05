@@ -15,13 +15,13 @@
 
 const SIGNAL_URL = window.__INKVOICE_SIGNAL_URL || 'https://inkvoiceapp.com/signal.php';
 
-// WiFi-only: NO ICE servers at all — no STUN, no TURN, nothing external is
-// ever contacted. Devices connect using local-network (host / mDNS `.local`)
-// candidates only, so this works when both are on the same WiFi and never
-// otherwise. Nothing about the connection (not even setup) leaves the LAN
-// except the ~1KB code handshake via signal.php. (Trade-off: a few locked-down
-// networks that block client-to-client mDNS/multicast won't pair — accepted.)
-const ICE_SERVERS = [];
+// Same-WiFi peer-to-peer. A STUN server is used ONLY during connection setup so
+// each device can learn how to be reached — it never sees any invoice data (all
+// real data flows strictly peer-to-peer over the LAN). We use Cloudflare's STUN
+// (not Google's) and NO TURN, so data is never relayed through anyone. Pure
+// no-STUN (mDNS-only) failed on real networks that block client-to-client
+// multicast, so STUN is the pragmatic minimum for reliable pairing.
+const ICE_SERVERS = [{ urls: 'stun:stun.cloudflare.com:3478' }];
 
 const POLL_MS = 900;      // how often each side re-asks the mailbox during setup
 const SETUP_TIMEOUT = 90_000;
