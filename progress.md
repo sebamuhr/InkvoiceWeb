@@ -245,9 +245,22 @@ Decisions locked with the user:
   "Connect a device" modal; `store.js` gets a write-event bus + silent-apply path; current
   view re-renders on incoming ops; `SYNC_URL` const → `https://inkvoiceapp.com/signal.php`;
   bump SW + add files to SHELL. `sw.js` already bypasses cross-origin so signal.php is uncached.
-- **Build in 3 phases:** (1) signaling + raw data-channel connect + Accept prompt (test vs a
-  local mock signaler); (2) full mirror + live deltas + store event bus; (3) UX polish
-  (laptop connect screen, status/reconnect, auto-reconnect token) + manual 2-device checklist.
+- **Build in 3 phases:** (1) ✅ **DONE** signaling + raw data-channel connect + Accept prompt;
+  (2) full mirror + live deltas + store event bus; (3) UX polish (laptop connect screen,
+  status/reconnect, auto-reconnect token) + manual 2-device checklist.
+- **Phase 1 status (2026-07-05):** `signal.php` (repo root; deploy = manual upload to
+  Hostinger `public_html/` → served at `https://inkvoiceapp.com/signal.php`, CROSS-origin from
+  the app at app.inkvoiceapp.com, hence CORS in the file) + `js/sync.js` (WebRTC transport,
+  `Sync` singleton: `host()`/`join(code)`/`accept()`/`reject()`/`send()`/`onMessage()`/
+  `onState()`/`onPeer()`). Signaling is POLL-based (short reqs, LiteSpeed-safe), 6-digit code,
+  one-time claim, 180s TTL, per-IP rate-limit. Wire msgs: `hello`(guest→host)→host shows
+  Accept→`welcome`/`rejected`; `bye` teardown. `SIGNAL_URL` overridable via
+  `window.__INKVOICE_SIGNAL_URL` (used by tests). **Verified:** (a) real 2-peer WebRTC data
+  channel via a Playwright 2-context test against an API-identical Python mock signaler
+  (connect, accept-gate, bidirectional ops, reject + wrong-code paths); (b) live `signal.php`
+  on Hostinger PHP 8.3 curl-tested — all endpoints/edge cases pass. Test scripts are throwaway
+  (scratchpad, not committed). **Gotcha:** don't load the app's `index.html` in unit tests —
+  its SW `controllerchange` reloads the page and wipes injected globals; use a bare 404 doc.
 - **Numbering worry solved:** laptop reads the phone's synced counters live, so `peekNextNumber`
   is always correct. (Rare simultaneous-create race → later hardening: phone as sole number
   issuer.) **Can't fully test real-LAN WebRTC headlessly** → user does a 2-device WiFi check.

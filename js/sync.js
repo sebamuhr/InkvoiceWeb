@@ -1,0 +1,238 @@
+// ===== Inkvoice — device sync (WebRTC data channel, LAN peer-to-peer) =====
+//
+// Two devices holding the same 6-digit code shake hands through signal.php
+// (handshake only — ~1KB of SDP/ICE), then talk PEER-TO-PEER over the local
+// WiFi. No invoice data ever touches the server.
+//
+// Roles:
+//   HOST  = the phone (the boss). Generates the code, waits, and must tap
+//           "Accept" before any data is shared.
+//   GUEST = the laptop/tablet. Types the code, connects, receives the mirror.
+//
+// This module is transport + handshake only. The data mirror (snapshot + live
+// deltas) is layered on top via onMessage()/send() by the app (Phase 2). The
+// wire format is plain JSON so a future native Android client can speak it too.
+
+const SIGNAL_URL = window.__INKVOICE_SIGNAL_URL || 'https://inkvoiceapp.com/signal.php';
+
+// Public STUN helps candidate gathering; on the same WiFi the media path is
+// direct (host/mDNS candidates) and no data is relayed. No TURN on purpose —
+// we never want invoice data bouncing through a third party.
+const ICE_SERVERS = [{ urls: 'stun:stun.l.google.com:19302' }];
+
+const POLL_MS = 900;      // how often each side re-asks the mailbox during setup
+const SETUP_TIMEOUT = 90_000;
+
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+const digits6 = () => String(Math.floor(Math.random() * 1_000_000)).padStart(6, '0');
+
+// ---- tiny signaling client (talks to signal.php) ----
+async function sig(action, code, { method = 'GET', body = null, params = {} } = {}) {
+  const qs = new URLSearchParams({ a: action, code, ...params }).toString();
+  const res = await fetch(`${SIGNAL_URL}?${qs}`, {
+    method,
+    headers: body != null ? { 'Content-Type': 'text/plain' } : undefined,
+    body: body != null ? body : undefined,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) { const e = new Error(data.error || `signal ${res.status}`); e.status = res.status; throw e; }
+  return data;
+}
+
+class SyncManager {
+  constructor() {
+    this.state = 'idle';           // idle|waiting|connecting|accept|connected|error|closed
+    this.role = null;              // 'host' | 'guest'
+    this.code = null;
+    this.error = null;
+    this.pc = null;
+    this.channel = null;
+    this._alive = false;           // setup loops run while true
+    this._stateCbs = new Set();
+    this._msgCbs = new Set();
+    this._peerCbs = new Set();     // fires with the peer's `hello` info (host: on request; guest: on welcome)
+  }
+
+  onState(cb) { this._stateCbs.add(cb); return () => this._stateCbs.delete(cb); }
+  onMessage(cb) { this._msgCbs.add(cb); return () => this._msgCbs.delete(cb); }
+  onPeer(cb) { this._peerCbs.add(cb); return () => this._peerCbs.delete(cb); }
+
+  _set(state, error = null) {
+    this.state = state; this.error = error;
+    this._stateCbs.forEach(cb => { try { cb(state, error); } catch {} });
+  }
+
+  // Send an app-level protocol message over the P2P channel.
+  send(obj) {
+    if (this.channel && this.channel.readyState === 'open') {
+      this.channel.send(JSON.stringify(obj));
+      return true;
+    }
+    return false;
+  }
+
+  _newPC() {
+    const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+    pc.onconnectionstatechange = () => {
+      if (['failed', 'disconnected', 'closed'].includes(pc.connectionState) && this.state === 'connected') {
+        this._teardown('closed');
+      }
+    };
+    return pc;
+  }
+
+  _wireChannel(ch) {
+    this.channel = ch;
+    ch.onmessage = (e) => {
+      let msg; try { msg = JSON.parse(e.data); } catch { return; }
+      this._handleControl(msg);
+      this._msgCbs.forEach(cb => { try { cb(msg); } catch {} });
+    };
+    ch.onclose = () => { if (this.state === 'connected') this._teardown('closed'); };
+  }
+
+  // Handshake messages the transport itself understands; everything else is
+  // passed through to the app via onMessage.
+  _handleControl(msg) {
+    if (msg.t === 'hello' && this.role === 'host') {
+      // Guest announced itself → ask the human to Accept.
+      this._pendingPeer = msg;
+      this._set('accept');
+      this._peerCbs.forEach(cb => { try { cb(msg); } catch {} });
+    } else if (msg.t === 'welcome' && this.role === 'guest') {
+      this._set('connected');
+      this._peerCbs.forEach(cb => { try { cb(msg); } catch {} });
+    } else if (msg.t === 'rejected' && this.role === 'guest') {
+      this._teardown('error', 'The phone declined this device');
+    } else if (msg.t === 'bye') {
+      this._teardown('closed');
+    }
+  }
+
+  // ---- HOST (phone) ----
+  async host() {
+    this._reset('host');
+    this._alive = true;
+    this.code = digits6();
+    this.pc = this._newPC();
+    const ch = this.pc.createDataChannel('inkvoice', { ordered: true });
+    this._wireChannel(ch);
+    ch.onopen = () => { /* wait for the guest's hello before accepting */ };
+
+    const offer = await this.pc.createOffer();
+    await this.pc.setLocalDescription(offer);
+
+    try {
+      await sig('offer', this.code, { method: 'POST', body: JSON.stringify(offer) });
+    } catch (e) {
+      // 409 = someone is already pairing under this random code; pick another.
+      if (e.status === 409) return this.host();
+      this._teardown('error', 'Could not reach the pairing server'); throw e;
+    }
+
+    this._set('waiting');
+    this._trickleOut('host');
+    this._pollAnswerAndIce();
+    return this.code;   // show this to the user
+  }
+
+  // Host: user tapped Accept → open the data flow and send the mirror trigger.
+  accept() {
+    if (this.state !== 'accept') return;
+    this.send({ t: 'welcome', app: 'inkvoice-web' });
+    this._set('connected');
+  }
+  reject() {
+    if (this.state !== 'accept') return;
+    this.send({ t: 'rejected' });
+    this._teardown('closed');
+  }
+
+  async _pollAnswerAndIce() {
+    const started = Date.now();
+    while (this._alive && !this.pc.currentRemoteDescription) {
+      if (Date.now() - started > SETUP_TIMEOUT) return this._teardown('error', 'No device connected in time');
+      try {
+        const { answer } = await sig('answer', this.code);
+        if (answer) {
+          await this.pc.setRemoteDescription(JSON.parse(answer));
+          this._set('connecting');
+          break;
+        }
+      } catch (e) { if (e.status === 404) return this._teardown('error', 'Pairing expired'); }
+      await sleep(POLL_MS);
+    }
+    this._pollRemoteIce('host');
+  }
+
+  // ---- GUEST (laptop/tablet) ----
+  async join(code) {
+    this._reset('guest');
+    this._alive = true;
+    this.code = String(code).replace(/\D/g, '');
+    if (this.code.length !== 6) { this._set('error', 'Enter the 6-digit code'); return false; }
+    this.pc = this._newPC();
+    this.pc.ondatachannel = (e) => {
+      this._wireChannel(e.channel);
+      e.channel.onopen = () => this.send({ t: 'hello', app: 'inkvoice-web', ua: navigator.userAgent.slice(0, 120) });
+    };
+
+    this._set('connecting');
+    let offer;
+    try {
+      ({ offer } = await sig('offer', this.code));   // claims it (one-time)
+    } catch (e) {
+      const m = e.status === 404 ? 'No device is offering that code'
+              : e.status === 410 ? 'That code was already used' : 'Could not reach the pairing server';
+      this._set('error', m); return false;
+    }
+    await this.pc.setRemoteDescription(JSON.parse(offer));
+    const answer = await this.pc.createAnswer();
+    await this.pc.setLocalDescription(answer);
+    await sig('answer', this.code, { method: 'POST', body: JSON.stringify(answer) });
+
+    this._trickleOut('guest');
+    this._pollRemoteIce('guest');
+    return true;
+  }
+
+  // ---- shared ICE plumbing ----
+  _trickleOut(from) {
+    this.pc.onicecandidate = (e) => {
+      if (e.candidate && this._alive) {
+        sig('ice', this.code, { method: 'POST', params: { from }, body: JSON.stringify(e.candidate) }).catch(() => {});
+      }
+    };
+  }
+  async _pollRemoteIce(from) {
+    let since = 0;
+    while (this._alive && this.state !== 'connected' && this.state !== 'closed') {
+      try {
+        const { ice, next } = await sig('ice', this.code, { params: { from, since } });
+        for (const c of (ice || [])) { try { await this.pc.addIceCandidate(JSON.parse(c)); } catch {} }
+        since = next ?? since;
+      } catch (e) { if (e.status === 404) break; }
+      await sleep(POLL_MS);
+    }
+  }
+
+  // ---- lifecycle ----
+  _reset(role) {
+    this._teardownQuiet();
+    this.role = role; this.error = null; this._pendingPeer = null;
+  }
+  _teardownQuiet() {
+    this._alive = false;
+    try { this.channel && this.channel.close(); } catch {}
+    try { this.pc && this.pc.close(); } catch {}
+    this.channel = null; this.pc = null;
+  }
+  _teardown(state, error = null) {
+    if (this.code && this.role === 'host') sig('close', this.code, { method: 'POST' }).catch(() => {});
+    this._teardownQuiet();
+    this._set(state, error);
+  }
+  disconnect() { try { this.send({ t: 'bye' }); } catch {} this._teardown('closed'); }
+}
+
+export const Sync = new SyncManager();
