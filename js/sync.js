@@ -80,9 +80,11 @@ class SyncManager {
     this._stopHeartbeat();
     this._lastRx = Date.now();
     this._hb = setInterval(() => {
-      if (!this.channel || this.channel.readyState !== 'open') return;
+      // A gone/closed channel (e.g. after the OS suspended us) means the link is
+      // DEAD — declare it so, don't silently sit in a stale 'connected' state.
+      if (!this.channel || this.channel.readyState !== 'open') { this._teardown('closed'); return; }
       if (Date.now() - this._lastRx > 9000) { this._teardown('closed'); return; }
-      try { this.channel.send(JSON.stringify({ t: '__ping' })); } catch {}
+      try { this.channel.send(JSON.stringify({ t: '__ping' })); } catch { this._teardown('closed'); }
     }, 3000);
   }
   _stopHeartbeat() { clearInterval(this._hb); this._hb = null; }

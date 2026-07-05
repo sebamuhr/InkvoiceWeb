@@ -40,7 +40,7 @@
 - **Service worker is network-first** (`sw.js`): it always tries the network first so new
   code loads immediately when online, and falls back to cache when offline. On any file
   change bump the cache constant `const CACHE = 'inkvoice-vNN'` so old caches are purged.
-  **Current: `inkvoice-v26`.**
+  **Current: `inkvoice-v27`.**
 - If you add/remove a file, also update the `SHELL` array in `sw.js`.
 
 ---
@@ -378,6 +378,18 @@ Decisions locked with the user:
   auto-reconnects ~instantly + live sync restored), plus auto-reconnect/mirror/UI/abrupt-death/
   boot/validation regressions all green. **SW → v26.** NOTE: phone-locked/app-closed still needs
   native Android; this makes the common tab-switch case seamless.
+- **FIX: phone stuck "connected", laptop forever "Looking for your phone" (2026-07-05):**
+  reported on BOTH Android & iPhone (⇒ logic bug, not platform). After the phone was
+  suspended/locked and reopened, the laptop never reconnected (manual "Enter code" worked). Two
+  root causes: (1) `sync.js` heartbeat did `if(channel not open) return` — a dead/closed channel
+  after suspension left the phone in a STALE `state:'connected'` that never tore down → now it
+  `_teardown('closed')` on a gone/closed channel or a failed ping. (2) `canAdvertise` requires
+  state ∈ {idle,closed,error}, so a stale 'connected' (or stuck `advertising` flag / expired
+  standing offer) blocked re-advertising → the `visibilitychange`→visible handler now, for the
+  phone, treats anything that isn't a genuinely live connection (`pc.connectionState==='connected'`)
+  as stale: resets `advertising=false`, `Sync.disconnect()`, re-advertises. **Reproduced
+  headlessly** (force stale-connected + dead pc → laptop stuck → reopen phone → recovers ~1.3s);
+  full suite green. **SW → v27.**
 - **Numbering worry solved:** laptop reads the phone's synced counters live, so `peekNextNumber`
   is always correct. (Rare simultaneous-create race → later hardening: phone as sole number
   issuer.) **Can't fully test real-LAN WebRTC headlessly** → user does a 2-device WiFi check.

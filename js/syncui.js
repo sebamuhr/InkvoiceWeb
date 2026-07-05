@@ -227,8 +227,19 @@ export function initSyncUI(opts) {
       return;
     }
     // Back in the foreground → reconnect immediately.
-    if (role === 'phone') { if (Sync.state === 'connected') acquireWake(); setTimeout(advertiseTick, 120); }
-    else if (Sync.state === 'connected' && Sync.pc && Sync.pc.connectionState === 'connected') { acquireWake(); }
+    const reallyConnected = Sync.state === 'connected' && Sync.pc && Sync.pc.connectionState === 'connected';
+    if (role === 'phone') {
+      if (reallyConnected) { acquireWake(); return; }
+      // Anything else after a resume is stale — a dead link the events missed, or a
+      // standing offer that expired while suspended. Clear it (and the advertising
+      // guard) and re-advertise from scratch so a searching device can find us.
+      advertising = false;
+      Sync.disconnect();
+      setTimeout(advertiseTick, 200);
+      return;
+    }
+    // guest
+    if (reallyConnected) { acquireWake(); }
     else if (booted) { Sync.disconnect(); }                       // was live but the tab got killed → drop → guest handler rejoins
     else if (getPairKey()) { startGuestReconnect(appEl); }        // kick an immediate reconnect attempt now
   });
