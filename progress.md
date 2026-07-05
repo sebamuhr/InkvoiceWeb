@@ -40,7 +40,7 @@
 - **Service worker is network-first** (`sw.js`): it always tries the network first so new
   code loads immediately when online, and falls back to cache when offline. On any file
   change bump the cache constant `const CACHE = 'inkvoice-vNN'` so old caches are purged.
-  **Current: `inkvoice-v30`.**
+  **Current: `inkvoice-v31`.**
 - If you add/remove a file, also update the `SHELL` array in `sw.js`.
 
 ---
@@ -447,6 +447,20 @@ Decisions locked with the user:
   re-advertises on visible so the offer is ready. **All reconnect tests rewritten to the manual
   flow** (press #rc-go → phone #ra-accept) — reconnect/mutex/tabswitch/stuck/deaddrop/reset +
   sync2/3/valid/boot all green. Bundle shipped as COMPLETE app payload. **SW → v30.**
+- **ROOT-CAUSE FIX: paired phone now always advertises (2026-07-05):** "does not connect at
+  all" (reconnect) was caused by the mutual-exclusion `inkvoice_mode` flag: advertising was
+  gated on `mode==='hub'`, but mode DEFAULTS to `solo`, so a paired phone that booted (or an
+  existing user post-update) never advertised → the laptop's Re-Connect found nothing. Every
+  test went through fresh pairing (which set hub), so it was never caught. FIX: removed the
+  persistent mode flag entirely. `canAdvertise` now gates on `HAS_PAIRED` — a paired phone stands
+  a device-key offer whenever it's foreground + not connected. Mutual exclusion is enforced by
+  DESIGN instead: reconnect needs a press on BOTH ends (laptop Re-Connect + phone Accept), and
+  `renderHub` shows the lock screen ONLY while actually connected (phone is fully usable
+  otherwise). `reclaimPhone` = just disconnect (laptop waits on its manual Re-Connect screen, no
+  auto-grab). Removed `resumeLaptop`, the `{t:'solo'}` message, and the "Reconnect laptop"
+  Profile relabel. **New regression `paired_boot_test`** (reopen both apps → laptop Re-Connect +
+  phone Accept works with NO toggle on the phone) — this would have caught it. Full suite green.
+  **SW → v31.**
 - **Numbering worry solved:** laptop reads the phone's synced counters live, so `peekNextNumber`
   is always correct. (Rare simultaneous-create race → later hardening: phone as sole number
   issuer.) **Can't fully test real-LAN WebRTC headlessly** → user does a 2-device WiFi check.
