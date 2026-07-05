@@ -300,6 +300,14 @@ Decisions locked with the user:
   STUN path was reproducible. So real-device testing is the validator. **One-line fallback** if
   a user's network blocks local P2P: set `ICE_SERVERS = [{urls:'stun:stun.l.google.com:19302'}]`
   (STUN is metadata-only, setup-only — no data through it). **SW → v20.**
+- **✅ REAL-DEVICE CONFIRMED (2026-07-05):** pure no-STUN got stuck at "Connecting" on the
+  user's real network (local multicast/mDNS blocked). Added **Cloudflare STUN**
+  (`stun:stun.cloudflare.com:3478`, setup-only, no data, no TURN) → **phone+laptop paired
+  successfully over WiFi, live mirror working.** **SW → v21.** Core device sync (Phases 1–3)
+  is DONE and validated on real hardware. Deployed to Hostinger `public_html/app/` (v21).
+  **Remaining:** (a) auto-reconnect token (type code once, then auto-reconnect); (b) bring the
+  native Android app into the mesh (separate Kotlin/Play effort, protocol is already
+  platform-neutral); (c) `git push` (commits are LOCAL only so far).
 - **Numbering worry solved:** laptop reads the phone's synced counters live, so `peekNextNumber`
   is always correct. (Rare simultaneous-create race → later hardening: phone as sole number
   issuer.) **Can't fully test real-LAN WebRTC headlessly** → user does a 2-device WiFi check.
