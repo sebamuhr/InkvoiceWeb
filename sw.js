@@ -3,7 +3,7 @@
    browser's HTTP cache (GitHub Pages sends max-age=600) can never serve stale JS.
    The app always gets the freshest code when online; cache is only the offline
    fallback. This fixes "refresh shows no change for ~10 minutes after a deploy". */
-const CACHE = 'inkvoice-v35';
+const CACHE = 'inkvoice-v36';
 
 const SHELL = [
   './', './index.html', './css/styles.css', './vendor/jspdf.umd.min.js', './vendor/fonts.js',
@@ -48,7 +48,7 @@ self.addEventListener('fetch', (e) => {
   // icon (seen on real devices once a worker is registered — a fresh browser with no
   // worker always got the real icon). Letting them go straight to the network (they
   // are HTTP-cached for 7 days) guarantees the real teal icon on install/re-install.
-  if (url.pathname.endsWith('/manifest.json') || url.pathname.includes('/icons/')) return;
+  if (url.pathname.endsWith('/manifest.json') || url.pathname.endsWith('/favicon.ico') || url.pathname.includes('/icons/')) return;
   e.respondWith(
     // {cache:'reload'} bypasses the browser HTTP cache so we always hit the network.
     fetch(req, { cache: 'reload' })

@@ -7,6 +7,110 @@
 
 ---
 
+## 🔴 ACTIVE ISSUE — PWA home-screen icon on Android (READ THIS FIRST)
+
+**As of 2026-07-06, live version = v35; v36 is BUILT and awaiting upload**
+(`_upload/inkvoice-app-COMPLETE-v36.zip`). iPhone is fine. Do NOT re-run the fixes
+already tried below — they are done.
+
+### Symptoms (from the user, on their real phone)
+- **iPhone / Safari:** ✅ icon is correct. (Uses `icons/apple-touch-icon.png`.)
+- **Android Chrome:** installs the teal icon, BUT the launcher icon "has some blue
+  edges that look horrible." → This is the **maskable icon** being badly designed.
+- **Android Firefox ("Mozilla", their daily driver):** ❌ shows the **generic green
+  Android robot** icon. The wrong icon appears **in Firefox's own Add-to-Home-screen
+  preview dialog, before tapping Add** — so Firefox never gets the real icon.
+  Persists **even after** clearing all site data AND after v35.
+
+### TWO SEPARATE BUGS — both still open
+
+**BUG A — maskable icon is ugly (Chrome "blue edges" + splash logo).** ✅ FIXED in v36 (awaiting upload).
+- Was: `icons/maskable-512.png` = blue square border + black square + teal circle +
+  swirl → Android masking produced blue/black edges on the launcher icon AND on the
+  splash-screen logo (Android builds the splash from the same maskable icon).
+- **FIX SHIPPED IN BUNDLE (2026-07-06):** regenerated `maskable-512.png` as **full-bleed
+  teal** (#069a8b to every edge) with the black swirl extracted from `icon-512.png` and
+  centered at the same visual proportion (~58% ≈ 298px, well inside the ~80%/409px safe
+  zone). Method: numpy alpha-extraction of the swirl (anti-aliased) + composite on flat
+  teal. Verified by eye under circle AND squircle mask previews — clean, no edges.
+  `any` icons (icon-192/512) untouched — the user likes them.
+- NOTE: already-installed PWAs cache their icon — user must remove from home screen and
+  re-add after uploading v36 to see the fix.
+
+**BUG B — Firefox Android gets NO manifest icon (generic robot).** Best-guess fixes shipped in v36, NOT confirmed.
+- **NEW in v36:** Firefox's plain pinned-shortcut path (the system "Add to Home screen"
+  dialog the user saw) uses the PAGE icon, not the manifest. `index.html` had only a bare
+  `<link rel="icon" href=…>` (no sizes/type). Now: `rel=icon` 192 + 512 with
+  `type="image/png" sizes=…`, `rel="shortcut icon" favicon.ico`, and a real multi-size
+  **`favicon.ico`** (16/32/48) at the app root (browsers auto-request it). `sw.js` also
+  bypasses `/favicon.ico` (same rule as manifest/icons). The clean maskable may also help
+  if their Firefox choked on the old one. **Still to verify on the user's phone.**
+- **Could not reproduce on the emulator.** Emulator Firefox **152** shows the correct
+  teal icon in its install dialog (see below). So this is **device/Firefox-version
+  specific** to the user's phone.
+- Note a dialog difference: on the emulator, Firefox showed its OWN dialog titled
+  "Firefox" with the teal icon. The user's screenshot showed the **Android system
+  pin-shortcut dialog** titled "Add to Home screen" ("Touch and hold the widget…") with
+  the generic icon. Different code path → suspect the user's Firefox is creating a plain
+  pinned shortcut (not a PWA install) and passing a generic icon, OR their Firefox
+  version chokes on the current maskable/icon. **Next step: find out the user's exact
+  Firefox version, and whether their menu shows "Add app to Home screen" vs only
+  "Add to shortcuts".** Bug A's clean maskable may or may not also fix this.
+
+### What is CONFIRMED CORRECT (do not re-investigate)
+- **Server:** `https://app.inkvoiceapp.com` is LiteSpeed/Hostinger, **no CDN/edge cache**
+  (checked headers — your phone gets the same bytes as curl). `manifest.json` served as
+  `application/manifest+json`; all icons are valid non-interlaced 8-bit PNGs with correct
+  dimensions matching the manifest. `manifest.json` has a stable `id`.
+- **Emulator install test (v34/v35):** first install, remove + re-install, and even
+  OFFLINE re-install ALL show the correct teal icon on BOTH Firefox 152 and Chrome.
+  Screenshots exist (see scratchpad). So clean code does NOT drop the icon.
+- **Incognito/private tab installs always give a generic icon** — that's normal browser
+  behaviour (install disabled in private mode: Chrome reported `in-incognito`). Not a bug.
+
+### Fixes ALREADY SHIPPED for this (don't redo)
+- v34: manifest moved `manifest.webmanifest` → **`manifest.json`** (server serves it
+  natively; no dependency on hidden `.htaccess`). Added manifest `id`. SW no longer
+  returns `index.html`/HTML for failed asset requests.
+- v35: **service worker no longer intercepts `/manifest.json` or `/icons/…`** — they go
+  straight to the network (verified: `fromServiceWorker:false` for icons, `true` for
+  js/css). This was aimed at Bug B (worker mediating the icon fetch) but **did NOT fix
+  the user's Firefox.** So Bug B is NOT the service worker.
+- `.htaccess` (in `public_html/app/`) forces manifest MIME + `Cache-Control: max-age=0,
+  must-revalidate` on the manifest. Icons are served `max-age=604800` (7 days).
+
+### Emulator is SET UP for testing (use it)
+- SDK: `~/Android/Sdk`. adb: `~/Android/Sdk/platform-tools/adb`.
+- AVDs: **`inkvoice_test`** (Android 15 / API 35, x86_64, has Play Store + Chrome).
+  Boot: `emulator -avd inkvoice_test -no-audio -no-window -gpu swiftshader_indirect &`
+- **Firefox 152 is installed** on it (`org.mozilla.firefox`, x86_64 APK from
+  ftp.mozilla.org/pub/fenix/releases/152.0.4/…). Drive it via `adb shell input tap` +
+  `adb exec-out screencap -p`. An Inkvoice PWA is/was installed on its home screen
+  showing the CORRECT teal icon.
+- To test an install: open the site in Chrome/Firefox → menu → (Chrome) "Install app" /
+  (Firefox) menu → More → "Add app to Home screen" → the dialog PREVIEWS the icon.
+- The emulator may still be running from the last session; if not, reboot it.
+
+### Deploy reminder for THIS repo
+- App is uploaded **manually** to Hostinger `public_html/app/`. Build a COMPLETE bundle
+  (never partial — see memory `deploy-complete-bundle.md`). Last bundle:
+  `_upload/inkvoice-app-COMPLETE-v36.zip` (38 files, boot-tested: 0 errors, all icons +
+  favicon.ico + manifest 200). After a fix, bump `sw.js` `CACHE` + `js/sync.js`
+  `APP_VERSION` together, rebuild the full zip, tell the user to upload + extract into
+  `public_html/app/`. On-screen version marker confirms deploy. **favicon.ico is now part
+  of the bundle** (root-level, next to index.html).
+
+### Suggested next steps for a fresh session
+1. **v36 uploaded?** If not, user uploads + extracts `inkvoice-app-COMPLETE-v36.zip` into
+   `public_html/app/`, then on the phone: remove the installed icon → reopen the site →
+   re-add to home screen (installed icons are cached; reinstall is required).
+2. **Verify Bug A fixed on Chrome Android** (clean teal launcher icon + splash, no blue).
+3. **For Bug B (if the robot persists after v36):** get the user's **Firefox version**
+   and the exact menu wording. Try dropping `purpose:maskable` from the manifest as a
+   test, or ask for a screenshot of Firefox **menu → More**.
+
+---
+
 ## 1. What this is
 
 - **Product:** **Inkvoice Web** — an iPhone / on-the-go **PWA** companion to the
@@ -205,6 +309,19 @@ chevron clears content.
 ---
 
 ## 9. Changelog (newest first)
+
+### 2026-07-06 — v36: clean maskable icon (Bug A) + Firefox page-icon fixes (Bug B attempt)
+- **`icons/maskable-512.png` regenerated**: full-bleed teal + centered black swirl
+  (extracted from icon-512 with anti-aliased alpha, ~58% of frame = inside the safe
+  zone). Kills the blue/black edges on the Chrome Android launcher icon AND the
+  splash-screen logo. Verified with circle + squircle mask previews.
+- **Firefox fallback-shortcut icon**: `index.html` icon links upgraded (192+512 PNG with
+  `sizes`/`type`, `shortcut icon`), new multi-size **`favicon.ico`** at app root;
+  `sw.js` never intercepts `/favicon.ico`. Firefox's plain pin-shortcut path uses the
+  page icon, not the manifest — this is the best-guess fix; needs on-device confirmation.
+- Boot-tested repo AND the bundle tree headlessly: app renders, 0 pageerrors, all
+  icons/favicon/manifest 200. **SW → v36 / APP_VERSION v36.** Bundle:
+  `_upload/inkvoice-app-COMPLETE-v36.zip` (38 files). Awaiting manual Hostinger upload.
 
 ### 2026-07-05 — Small UI fixes + DEVICE SYNC design locked (big feature planned)
 Four quick fixes shipped, and the multi-device sync feature designed & approved (build next).
