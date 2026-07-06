@@ -40,7 +40,7 @@
 - **Service worker is network-first** (`sw.js`): it always tries the network first so new
   code loads immediately when online, and falls back to cache when offline. On any file
   change bump the cache constant `const CACHE = 'inkvoice-vNN'` so old caches are purged.
-  **Current: `inkvoice-v33`.** There is ALSO `export const APP_VERSION` in `js/sync.js` — keep it
+  **Current: `inkvoice-v34`.** There is ALSO `export const APP_VERSION` in `js/sync.js` — keep it
   in sync with the SW number; it's shown on-screen (connect/reconnect/hub/Profile diag link) so a
   deploy can be verified at a glance ("Inkvoice vNN"). If the on-screen version is stale, it's a
   deploy/SW-cache problem, not a code problem.

@@ -3,7 +3,7 @@
    browser's HTTP cache (GitHub Pages sends max-age=600) can never serve stale JS.
    The app always gets the freshest code when online; cache is only the offline
    fallback. This fixes "refresh shows no change for ~10 minutes after a deploy". */
-const CACHE = 'inkvoice-v33';
+const CACHE = 'inkvoice-v34';
 
 const SHELL = [
   './', './index.html', './css/styles.css', './vendor/jspdf.umd.min.js', './vendor/fonts.js',
@@ -11,7 +11,7 @@ const SHELL = [
   './js/sync.js', './js/syncbridge.js', './js/syncui.js',
   './js/views/dashboard.js', './js/views/create.js', './js/views/list.js',
   './js/views/view.js', './js/views/profile.js', './js/views/cards.js', './js/views/landing.js',
-  './manifest.webmanifest',
+  './manifest.json',
   './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png', './icons/maskable-512.png',
   './pdfsamples/professional.png', './pdfsamples/elegant.png', './pdfsamples/minimalist.png', './pdfsamples/classic.png'
 ];
@@ -52,6 +52,14 @@ self.addEventListener('fetch', (e) => {
         }
         return res;
       })
-      .catch(() => caches.match(req).then((hit) => hit || caches.match('./index.html')))
+      .catch(() => caches.match(req).then((hit) => {
+        if (hit) return hit;
+        // Only fall back to the app shell for PAGE navigations. NEVER return HTML for
+        // an asset request (icon, manifest, script): handing HTML back for an icon or
+        // manifest corrupts it — that's what made the installed icon revert to the
+        // default Android icon after an update.
+        if (req.mode === 'navigate') return caches.match('./index.html');
+        return new Response('', { status: 504, statusText: 'Offline' });
+      }))
   );
 });
