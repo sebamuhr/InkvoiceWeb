@@ -9,9 +9,10 @@
 
 ## 🔴 ACTIVE ISSUE — PWA home-screen icon on Android (READ THIS FIRST)
 
-**As of 2026-07-06, v37 is BUILT and awaiting upload**
-(`_upload/inkvoice-app-COMPLETE-v37.zip`). iPhone is fine. Do NOT re-run the fixes
-already tried below — they are done.
+**As of 2026-07-06, v38 is BUILT and awaiting upload**
+(`_upload/inkvoice-app-COMPLETE-v38.zip`). iPhone is fine. **v37 CONFIRMED WORKING on
+the user's Firefox** ("you are the master") — the -v2 URL cache-bust fixed the robot
+icon. Do NOT re-run the fixes already tried below — they are done.
 
 ### Symptoms (from the user, on their real phone)
 - **iPhone / Safari:** ✅ icon is correct. (Uses `icons/apple-touch-icon.png`.)
@@ -35,7 +36,12 @@ already tried below — they are done.
   teal. Verified by eye under circle AND squircle mask previews — clean, no edges.
   `any` icons (icon-192/512) untouched — the user likes them.
 - NOTE: already-installed PWAs cache their icon — user must remove from home screen and
-  re-add after uploading v36 to see the fix.
+  re-add after uploading to see the fix.
+- **DESIGN CORRECTION (v38):** the user wants the icon **"surrounded by a black edge"**
+  (like the real Inkvoice icon), NOT full-bleed teal. New `icons/maskable-512-v3.png` =
+  `icon-512.png` flattened opaque onto black (teal disc is 397/512 ≈ 77.5% — inside the
+  80% safe zone), so masking yields teal disc + black ring. New filename again because
+  browsers cache icons BY URL (the v37 lesson). Verified with circle+squircle previews.
 
 **BUG B — Firefox Android robot icon.** ROOT CAUSE FOUND (2026-07-06): **Firefox's own
 local icon cache is poisoned** — v37 busts it with NEW icon URLs. Awaiting confirmation.
@@ -103,20 +109,21 @@ local icon cache is poisoned** — v37 busts it with NEW icon URLs. Awaiting con
 ### Deploy reminder for THIS repo
 - App is uploaded **manually** to Hostinger `public_html/app/`. Build a COMPLETE bundle
   (never partial — see memory `deploy-complete-bundle.md`). Last bundle:
-  `_upload/inkvoice-app-COMPLETE-v37.zip` (41 files, boot-tested: 0 errors, all -v2
-  icons + favicon.ico + manifest 200). After a fix, bump `sw.js` `CACHE` + `js/sync.js`
+  `_upload/inkvoice-app-COMPLETE-v38.zip` (42 files, boot-tested: 0 errors, all icons +
+  favicon.ico + manifest 200). After a fix, bump `sw.js` `CACHE` + `js/sync.js`
   `APP_VERSION` together, rebuild the full zip, tell the user to upload + extract into
   `public_html/app/`. On-screen version marker confirms deploy. **favicon.ico is now part
   of the bundle** (root-level, next to index.html).
 
 ### Suggested next steps for a fresh session
-1. **v37 uploaded?** If not, user uploads + extracts `inkvoice-app-COMPLETE-v37.zip` into
+1. **v38 uploaded?** If not, user uploads + extracts `inkvoice-app-COMPLETE-v38.zip` into
    `public_html/app/`, then on the phone: remove the installed icon → open the site →
    re-add to home screen (installed icons are cached; re-add is required).
-2. **Verify Bug A fixed on Chrome Android** (clean teal launcher icon + splash, no blue).
-3. **Verify Bug B on the user's Firefox** — the -v2 URL bust should force a fresh icon.
-   If the robot STILL shows: Firefox Settings → Delete browsing data → ONLY "Cached
-   images and files", then re-add. (Do NOT suggest reinstalling Firefox — user refused.)
+2. **Verify the launcher icon is teal-disc-with-black-ring** on both Firefox and Chrome.
+3. **KEY LESSON for any future icon change:** browsers (Firefox especially) cache icons
+   BY URL and never refetch — every icon content change MUST ship under a NEW filename
+   (bump -vN) in manifest.json + index.html + sw.js SHELL, keeping the old files on the
+   server. (Do NOT suggest reinstalling Firefox — user refused.)
 
 ---
 
@@ -318,6 +325,15 @@ chevron clears content.
 ---
 
 ## 9. Changelog (newest first)
+
+### 2026-07-06 — v38: maskable = teal disc + BLACK edge (user's requested design)
+- v37 CONFIRMED: the -v2 URL rename fixed Firefox's robot icon (cache was the culprit).
+- But the user wants the icon "surrounded by a black edge" (the real Inkvoice look), not
+  full-bleed teal → `icons/maskable-512-v3.png` = icon-512 flattened opaque on black
+  (disc 77.5% < 80% safe zone → masks to teal disc + black ring; previews verified on
+  circle + squircle). NEW filename because icon URLs are cached forever (v37 lesson).
+  manifest.json + sw.js SHELL updated; old files kept. **SW → v38 / APP_VERSION v38.**
+  Bundle: `_upload/inkvoice-app-COMPLETE-v38.zip` (42 files, boot-tested 0 errors).
 
 ### 2026-07-06 — v37: bust Firefox's poisoned icon cache with NEW icon URLs (Bug B root cause)
 - User feedback on v36: robot icon persists in Firefox; **reinstalling Firefox fixed it**
