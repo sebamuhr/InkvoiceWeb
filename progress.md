@@ -9,8 +9,8 @@
 
 ## 🔴 ACTIVE ISSUE — PWA home-screen icon on Android (READ THIS FIRST)
 
-**As of 2026-07-06, live version = v35; v36 is BUILT and awaiting upload**
-(`_upload/inkvoice-app-COMPLETE-v36.zip`). iPhone is fine. Do NOT re-run the fixes
+**As of 2026-07-06, v37 is BUILT and awaiting upload**
+(`_upload/inkvoice-app-COMPLETE-v37.zip`). iPhone is fine. Do NOT re-run the fixes
 already tried below — they are done.
 
 ### Symptoms (from the user, on their real phone)
@@ -37,14 +37,23 @@ already tried below — they are done.
 - NOTE: already-installed PWAs cache their icon — user must remove from home screen and
   re-add after uploading v36 to see the fix.
 
-**BUG B — Firefox Android gets NO manifest icon (generic robot).** Best-guess fixes shipped in v36, NOT confirmed.
-- **NEW in v36:** Firefox's plain pinned-shortcut path (the system "Add to Home screen"
-  dialog the user saw) uses the PAGE icon, not the manifest. `index.html` had only a bare
-  `<link rel="icon" href=…>` (no sizes/type). Now: `rel=icon` 192 + 512 with
-  `type="image/png" sizes=…`, `rel="shortcut icon" favicon.ico`, and a real multi-size
-  **`favicon.ico`** (16/32/48) at the app root (browsers auto-request it). `sw.js` also
-  bypasses `/favicon.ico` (same rule as manifest/icons). The clean maskable may also help
-  if their Firefox choked on the old one. **Still to verify on the user's phone.**
+**BUG B — Firefox Android robot icon.** ROOT CAUSE FOUND (2026-07-06): **Firefox's own
+local icon cache is poisoned** — v37 busts it with NEW icon URLs. Awaiting confirmation.
+- **Proof from the user:** v36 (better link tags + favicon.ico) did NOT help, BUT
+  **reinstalling Firefox fixed the icon** (and Chrome was always eventually fine). So the
+  server/manifest are fine; Firefox cached a broken/generic icon for the OLD icon URLs
+  (poisoned back when the pre-v35 service worker corrupted icon fetches) and never
+  refetches — clearing site data does NOT clear Firefox's icon DB; only reinstall did.
+  The user will NOT reinstall Firefox again — hence the URL bust.
+- **FIX in v37:** icons copied to NEW names `icons/icon-192-v2.png` / `icon-512-v2.png` /
+  `maskable-512-v2.png`; `manifest.json` + `index.html` link tags point at the `-v2`
+  names (`favicon.ico?v=37` in the link tag; the bare-URL auto-request can't be renamed);
+  `sw.js` SHELL updated. Firefox has never seen these URLs → cannot serve them from its
+  poisoned cache → must fetch fresh. OLD icon files kept on the server so nothing 404s
+  for already-installed PWAs. `apple-touch-icon.png` untouched (iPhone works).
+- **If the robot STILL shows after v37** (would mean their Firefox keys its icon cache by
+  domain, not URL): Firefox Settings → Delete browsing data → tick ONLY "Cached images
+  and files" → delete, then re-add to home screen. Less drastic than reinstalling.
 - **Could not reproduce on the emulator.** Emulator Firefox **152** shows the correct
   teal icon in its install dialog (see below). So this is **device/Firefox-version
   specific** to the user's phone.
@@ -94,20 +103,20 @@ already tried below — they are done.
 ### Deploy reminder for THIS repo
 - App is uploaded **manually** to Hostinger `public_html/app/`. Build a COMPLETE bundle
   (never partial — see memory `deploy-complete-bundle.md`). Last bundle:
-  `_upload/inkvoice-app-COMPLETE-v36.zip` (38 files, boot-tested: 0 errors, all icons +
-  favicon.ico + manifest 200). After a fix, bump `sw.js` `CACHE` + `js/sync.js`
+  `_upload/inkvoice-app-COMPLETE-v37.zip` (41 files, boot-tested: 0 errors, all -v2
+  icons + favicon.ico + manifest 200). After a fix, bump `sw.js` `CACHE` + `js/sync.js`
   `APP_VERSION` together, rebuild the full zip, tell the user to upload + extract into
   `public_html/app/`. On-screen version marker confirms deploy. **favicon.ico is now part
   of the bundle** (root-level, next to index.html).
 
 ### Suggested next steps for a fresh session
-1. **v36 uploaded?** If not, user uploads + extracts `inkvoice-app-COMPLETE-v36.zip` into
-   `public_html/app/`, then on the phone: remove the installed icon → reopen the site →
-   re-add to home screen (installed icons are cached; reinstall is required).
+1. **v37 uploaded?** If not, user uploads + extracts `inkvoice-app-COMPLETE-v37.zip` into
+   `public_html/app/`, then on the phone: remove the installed icon → open the site →
+   re-add to home screen (installed icons are cached; re-add is required).
 2. **Verify Bug A fixed on Chrome Android** (clean teal launcher icon + splash, no blue).
-3. **For Bug B (if the robot persists after v36):** get the user's **Firefox version**
-   and the exact menu wording. Try dropping `purpose:maskable` from the manifest as a
-   test, or ask for a screenshot of Firefox **menu → More**.
+3. **Verify Bug B on the user's Firefox** — the -v2 URL bust should force a fresh icon.
+   If the robot STILL shows: Firefox Settings → Delete browsing data → ONLY "Cached
+   images and files", then re-add. (Do NOT suggest reinstalling Firefox — user refused.)
 
 ---
 
@@ -309,6 +318,19 @@ chevron clears content.
 ---
 
 ## 9. Changelog (newest first)
+
+### 2026-07-06 — v37: bust Firefox's poisoned icon cache with NEW icon URLs (Bug B root cause)
+- User feedback on v36: robot icon persists in Firefox; **reinstalling Firefox fixed it**
+  → root cause = Firefox's LOCAL icon cache holds a broken icon for the old URLs
+  (poisoned by the pre-v35 SW), unaffected by clearing site data. Server was never the
+  problem (matches: emulator fresh-Firefox always showed the right icon).
+- Fix: icons duplicated to `icons/{icon-192,icon-512,maskable-512}-v2.png`;
+  `manifest.json` + `index.html` now reference only the `-v2` URLs (+`favicon.ico?v=37`);
+  `sw.js` SHELL updated; old files kept so existing installs don't 404;
+  apple-touch-icon untouched (iPhone fine). Fallback if it persists: Firefox Settings →
+  Delete browsing data → "Cached images and files" only.
+- Boot-tested the bundle (0 errors, all -v2 icons 200). **SW → v37 / APP_VERSION v37.**
+  Bundle: `_upload/inkvoice-app-COMPLETE-v37.zip` (41 files). Awaiting upload.
 
 ### 2026-07-06 — v36: clean maskable icon (Bug A) + Firefox page-icon fixes (Bug B attempt)
 - **`icons/maskable-512.png` regenerated**: full-bleed teal + centered black swirl
