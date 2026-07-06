@@ -9,10 +9,19 @@
 
 ## 🔴 ACTIVE ISSUE — PWA home-screen icon on Android (READ THIS FIRST)
 
-**As of 2026-07-06, v38 is BUILT and awaiting upload**
-(`_upload/inkvoice-app-COMPLETE-v38.zip`). iPhone is fine. **v37 CONFIRMED WORKING on
+**As of 2026-07-06, v39 is BUILT and awaiting upload**
+(`_upload/inkvoice-app-COMPLETE-v39.zip`). iPhone is fine. **v37 CONFIRMED WORKING on
 the user's Firefox** ("you are the master") — the -v2 URL cache-bust fixed the robot
 icon. Do NOT re-run the fixes already tried below — they are done.
+**v39 = icons rebuilt from the REAL Android app resources** (user compared v38 with the
+native launcher icon: "pretty much the same but not… the legend" — the swirl artwork
+differed slightly). Icons are now `mipmap-xxxhdpi/ic_launcher_{background,foreground}`
+composited + center-72dp-of-108dp crop (exactly what a launcher renders), scaled to
+512/192: `icons/icon-{192,512}-v3.png`, `icons/maskable-512-v4.png`, favicon.ico
+regenerated. Teal + bg colours verified identical (#069a8b / black), disc = 76% (in the
+80% maskable safe zone). REMAINING possible diff the web can't fix: Firefox pin-shortcuts
+carry a small Firefox BADGE on the icon corner — that's added by Firefox/Android, not
+removable from our side.
 
 ### Symptoms (from the user, on their real phone)
 - **iPhone / Safari:** ✅ icon is correct. (Uses `icons/apple-touch-icon.png`.)
@@ -109,14 +118,14 @@ local icon cache is poisoned** — v37 busts it with NEW icon URLs. Awaiting con
 ### Deploy reminder for THIS repo
 - App is uploaded **manually** to Hostinger `public_html/app/`. Build a COMPLETE bundle
   (never partial — see memory `deploy-complete-bundle.md`). Last bundle:
-  `_upload/inkvoice-app-COMPLETE-v38.zip` (42 files, boot-tested: 0 errors, all icons +
+  `_upload/inkvoice-app-COMPLETE-v39.zip` (45 files, boot-tested: 0 errors, all icons +
   favicon.ico + manifest 200). After a fix, bump `sw.js` `CACHE` + `js/sync.js`
   `APP_VERSION` together, rebuild the full zip, tell the user to upload + extract into
   `public_html/app/`. On-screen version marker confirms deploy. **favicon.ico is now part
   of the bundle** (root-level, next to index.html).
 
 ### Suggested next steps for a fresh session
-1. **v38 uploaded?** If not, user uploads + extracts `inkvoice-app-COMPLETE-v38.zip` into
+1. **v39 uploaded?** If not, user uploads + extracts `inkvoice-app-COMPLETE-v39.zip` into
    `public_html/app/`, then on the phone: remove the installed icon → open the site →
    re-add to home screen (installed icons are cached; re-add is required).
 2. **Verify the launcher icon is teal-disc-with-black-ring** on both Firefox and Chrome.
@@ -325,6 +334,18 @@ chevron clears content.
 ---
 
 ## 9. Changelog (newest first)
+
+### 2026-07-06 — v39: icons = EXACT native Android launcher artwork
+- User compared the v38 web icon with the native app icon side by side ("pretty much the
+  same but not") → rebuilt all icons from the Android app's own adaptive-icon resources
+  (READ-ONLY source): composite `ic_launcher_background+foreground` (432px xxxhdpi),
+  crop the launcher-visible center 72dp of 108dp, scale → `icon-192-v3` / `icon-512-v3`
+  / `maskable-512-v4` + favicon.ico. Colours verified identical; disc 76% < 80% safe
+  zone. New filenames again (icon-cache rule). Old teal-only + first black-ring
+  maskables kept on server. Boot-tested: 0 errors. **SW → v39 / APP_VERSION v39.**
+  Bundle: `_upload/inkvoice-app-COMPLETE-v39.zip` (45 files).
+- NOTE: the Firefox-badge overlay on the shortcut icon is added by Firefox itself
+  (pinned-shortcut path) and cannot be removed by the site.
 
 ### 2026-07-06 — v38: maskable = teal disc + BLACK edge (user's requested design)
 - v37 CONFIRMED: the -v2 URL rename fixed Firefox's robot icon (cache was the culprit).
