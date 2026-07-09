@@ -3,7 +3,7 @@
    browser's HTTP cache (GitHub Pages sends max-age=600) can never serve stale JS.
    The app always gets the freshest code when online; cache is only the offline
    fallback. This fixes "refresh shows no change for ~10 minutes after a deploy". */
-const CACHE = 'inkvoice-v41';
+const CACHE = 'inkvoice-v42';
 
 const SHELL = [
   './', './index.html', './css/styles.css', './vendor/jspdf.umd.min.js', './vendor/fonts.js',
@@ -12,7 +12,7 @@ const SHELL = [
   './js/views/dashboard.js', './js/views/create.js', './js/views/list.js',
   './js/views/view.js', './js/views/profile.js', './js/views/cards.js', './js/views/landing.js',
   './manifest.json',
-  './icons/icon-192-v3.png', './icons/icon-512-v3.png', './icons/apple-touch-icon.png', './icons/maskable-512-v4.png',
+  './icons/icon-192-v4.png', './icons/icon-512-v4.png', './icons/apple-touch-icon.png', './icons/maskable-512-v5.png',
   './pdfsamples/professional.png', './pdfsamples/elegant.png', './pdfsamples/minimalist.png', './pdfsamples/classic.png'
 ];
 
