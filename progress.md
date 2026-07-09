@@ -9,10 +9,13 @@
 
 ## 🔴 ACTIVE ISSUE — PWA home-screen icon on Android (READ THIS FIRST)
 
-**As of 2026-07-06, v39 is BUILT and awaiting upload**
-(`_upload/inkvoice-app-COMPLETE-v39.zip`). iPhone is fine. **v37 CONFIRMED WORKING on
-the user's Firefox** ("you are the master") — the -v2 URL cache-bust fixed the robot
-icon. Do NOT re-run the fixes already tried below — they are done.
+**As of 2026-07-09, v41 is BUILT and awaiting upload**
+(`_upload/inkvoice-app-COMPLETE-v41.zip`). **v41 = v39 sync code, re-shipped** — the
+v40 pairing rework was ROLLED BACK (see changelog): the user reported it "went wrong"
+on real devices and that v39 "was working amazingly well". ⚠️ Do NOT re-apply the v40
+approach wholesale; if pairing friction comes up again, change ONE thing at a time and
+have the user verify on real hardware before the next change. The icon saga is DONE
+(v37 fixed the Firefox robot via URL cache-bust; v39 = exact native artwork).
 **v39 = icons rebuilt from the REAL Android app resources** (user compared v38 with the
 native launcher icon: "pretty much the same but not… the legend" — the swirl artwork
 differed slightly). Icons are now `mipmap-xxxhdpi/ic_launcher_{background,foreground}`
@@ -118,17 +121,22 @@ local icon cache is poisoned** — v37 busts it with NEW icon URLs. Awaiting con
 ### Deploy reminder for THIS repo
 - App is uploaded **manually** to Hostinger `public_html/app/`. Build a COMPLETE bundle
   (never partial — see memory `deploy-complete-bundle.md`). Last bundle:
-  `_upload/inkvoice-app-COMPLETE-v39.zip` (45 files, boot-tested: 0 errors, all icons +
+  `_upload/inkvoice-app-COMPLETE-v41.zip` (45 files, boot-tested: 0 errors, all icons +
   favicon.ico + manifest 200). After a fix, bump `sw.js` `CACHE` + `js/sync.js`
   `APP_VERSION` together, rebuild the full zip, tell the user to upload + extract into
   `public_html/app/`. On-screen version marker confirms deploy. **favicon.ico is now part
   of the bundle** (root-level, next to index.html).
 
 ### Suggested next steps for a fresh session
-1. **v39 uploaded?** If not, user uploads + extracts `inkvoice-app-COMPLETE-v39.zip` into
-   `public_html/app/`, then on the phone: remove the installed icon → open the site →
-   re-add to home screen (installed icons are cached; re-add is required).
-2. **Verify the launcher icon is teal-disc-with-black-ring** on both Firefox and Chrome.
+1. **v41 uploaded?** If not, user uploads + extracts `inkvoice-app-COMPLETE-v41.zip` into
+   `public_html/app/` (app only; signal.php unchanged). Confirm on-screen "v41".
+2. **Pairing friction is still an OPEN wish** (first pairing can take a few code tries)
+   but the v40 batch-fix made things WORSE on real devices and was rolled back. Before
+   any retry: get from the user WHAT went wrong with v40 exactly (no connect at all?
+   modal stuck? battery? laptop side or phone side?), then change one small thing at a
+   time. Candidate low-risk first step: wake lock while the code modal is open, nothing
+   else. Test scripts for pairing live in the scratchpad pattern `pairtest*.mjs` +
+   `mock_signal.py` (throwaway, rewrite as needed).
 3. **KEY LESSON for any future icon change:** browsers (Firefox especially) cache icons
    BY URL and never refetch — every icon content change MUST ship under a NEW filename
    (bump -vN) in manifest.json + index.html + sw.js SHELL, keeping the old files on the
@@ -334,6 +342,22 @@ chevron clears content.
 ---
 
 ## 9. Changelog (newest first)
+
+### 2026-07-09 — v41: ROLLBACK of the v40 pairing rework (user request)
+- v40 (same day) tried to fix "first pairing needs several code attempts" with a batch
+  of changes: wake lock while the code modal is open, silent same-code re-hosting on
+  any failure (`restandHost`), a ~45s polling Connect on the laptop, pc `failed` made
+  terminal in any state, and a 15s connect watchdog. All of it passed the headless
+  Playwright suite (incl. new phone-sleeps-mid-typing + burnt-room recovery tests) BUT
+  **on the user's real devices it "went wrong"** (exact failure mode not yet known) and
+  the user asked for a full revert: "it was actually working amazingly well before".
+- `git revert` of commit `66494bd` → `js/sync.js` + `js/syncui.js` byte-identical to
+  v39 behaviour; only `CACHE`/`APP_VERSION` bumped to v41. Re-verified after revert:
+  happy-path pairing + reclaim/Re-Connect regression tests green, app boot clean.
+  **SW → v41 / APP_VERSION v41.** Bundle: `_upload/inkvoice-app-COMPLETE-v41.zip`.
+- **Lesson:** headless-green ≠ real-device-good for WebRTC pairing changes. Next
+  attempt (if any) must be ONE small change per release, verified by the user on real
+  hardware before the next.
 
 ### 2026-07-06 — v39: icons = EXACT native Android launcher artwork
 - User compared the v38 web icon with the native app icon side by side ("pretty much the
