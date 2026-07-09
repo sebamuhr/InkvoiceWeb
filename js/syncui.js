@@ -28,9 +28,6 @@ let booted = false;        // guest: is the full app currently shown?
 let advertising = false;   // phone: a background reconnect offer is standing
 let manualMode = false;    // phone: the manual "Connect a device" modal is active
 let reconnectToken = 0;    // guest: bumps to cancel a running reconnect loop
-let hostMode = null;       // phone: which host modal is open — 'pair' | 'reconnect' | null
-let pairCode = null;       // phone: the pairing code on screen; kept STABLE across retries
-let restandBusy = false;   // phone: a re-host is already in flight
 
 const $ = id => document.getElementById(id);
 const elFrom = html => { const d = document.createElement('div'); d.innerHTML = html; return d.firstElementChild; };
@@ -63,41 +60,9 @@ function deviceId() {
 const getPairKey = () => localStorage.getItem(PAIR_KEY) || '';
 const setPairKey = k => { if (k) localStorage.setItem(PAIR_KEY, k); };
 
-// PHONE: stand (or re-stand) the host offer for whichever modal is open, keeping
-// the SAME code on screen. A failed attempt (ICE timeout, guest gave up, screen
-// blinked) must NOT burn the code — the laptop retries the same digits, so the
-// phone silently re-publishes a fresh room under them. host({code}) clears any
-// stale claimed room first, so every re-stand is clean.
-async function restandHost() {
-  if (restandBusy || !hostMode || !$('sync-modal')) return;
-  if (document.visibilityState !== 'visible') return;
-  if (!['idle', 'closed', 'error'].includes(Sync.state)) return;
-  restandBusy = true;
-  try {
-    if (hostMode === 'pair') {
-      pairCode = await Sync.host(pairCode ? { code: pairCode } : {});
-      if ($('sync-modal') && hostMode === 'pair') hostBody('waiting', { code: pairCode });
-    } else {
-      await Sync.host({ code: deviceId(), autoAccept: true });
-      if ($('sync-modal') && hostMode === 'reconnect') hostBody('reconnect-waiting');
-    }
-  } catch {
-    if ($('sync-modal')) hostBody('error', { msg: 'Could not reach the pairing server. Check your connection and try again.' });
-  } finally { restandBusy = false; }
-}
-
-function closeHostModal() {
-  hostMode = null; pairCode = null;
-  if (Sync.state !== 'connected') { Sync.disconnect(); releaseWake(); }
-  removeEl('sync-modal');
-  manualMode = false;
-  setTimeout(() => { advertiseTick(); renderHub(); renderPhoneReconnectBtn(); }, 800);   // resume hub advertising / lock screen
-}
-
 // ---------------- PHONE: "Connect a device" modal (first pairing) ----------------
 export async function openHostModal() {
   manualMode = true; advertising = false;      // pause background reconnect while pairing a new device
-  hostMode = 'pair'; pairCode = null;
   removeEl('sync-modal'); removeEl('phone-recon-btn');
   document.body.appendChild(elFrom(`
     <div class="modal-overlay" id="sync-modal"><div class="modal">
@@ -105,19 +70,25 @@ export async function openHostModal() {
       <div id="sync-body" class="sync-body"></div>
       <button class="btn ghost block" id="sync-close" style="margin-top:14px">Close</button>
     </div></div>`));
-  $('sync-close').onclick = closeHostModal;
+  $('sync-close').onclick = () => {
+    if (Sync.state !== 'connected') Sync.disconnect();
+    removeEl('sync-modal');
+    manualMode = false;
+    setTimeout(() => { advertiseTick(); renderHub(); renderPhoneReconnectBtn(); }, 800);   // resume hub advertising / lock screen
+  };
   hostBody('starting');
-  // Keep the screen awake for the WHOLE pairing — the screen auto-locking while
-  // the user walks to the laptop and types was the #1 "code doesn't work" cause.
-  acquireWake();
-  await restandHost();
+  try {
+    const code = await Sync.host();            // random 6-digit, needs human Accept
+    hostBody('waiting', { code });
+  } catch {
+    hostBody('error', { msg: 'Could not reach the pairing server. Check your connection and try again.' });
+  }
 }
 
 // PHONE, already paired: reconnect the SAME laptop with no code. Hosts under the
 // device key and waits; the laptop presses "Re-Connect" and this shows Accept.
 export async function openReconnectHost() {
   manualMode = true; advertising = false;
-  hostMode = 'reconnect'; pairCode = null;
   removeEl('sync-modal'); removeEl('phone-recon-btn');
   document.body.appendChild(elFrom(`
     <div class="modal-overlay" id="sync-modal"><div class="modal">
@@ -126,13 +97,17 @@ export async function openReconnectHost() {
       <button class="btn ghost block" id="sync-newdev" style="margin-top:12px">Pair a NEW device (show a code)</button>
       <button class="btn ghost block" id="sync-close" style="margin-top:10px">Close</button>
     </div></div>`));
-  $('sync-close').onclick = closeHostModal;
+  $('sync-close').onclick = () => {
+    if (Sync.state !== 'connected') Sync.disconnect();
+    removeEl('sync-modal'); manualMode = false;
+    setTimeout(() => { advertiseTick(); renderHub(); renderPhoneReconnectBtn(); }, 800);
+  };
   $('sync-newdev').onclick = openHostModal;
   hostBody('reconnect-waiting');
-  acquireWake();
   // Auto-accept: the user deliberately tapped "Reconnect my laptop", so no extra
   // confirm — the laptop links as soon as it presses Re-Connect.
-  await restandHost();
+  try { await Sync.host({ code: deviceId(), autoAccept: true }); hostBody('reconnect-waiting'); }
+  catch { hostBody('error', { msg: 'Could not reach the pairing server. Check your connection and try again.' }); }
 }
 
 function hostBody(kind, data = {}) {
@@ -326,43 +301,13 @@ export function mountConnectScreen(container, note = '') {
   code.addEventListener('keydown', e => { if (e.key === 'Enter') doConnect(); });
   go.onclick = doConnect;
 
-  // One press = we keep trying for ~45s (the phone re-stands the same code after
-  // any failed attempt, so retrying the SAME digits is always right). This is what
-  // used to force the user to re-type the code over and over.
   async function doConnect() {
     const c = code.value.replace(/\D/g, '');
     if (c.length !== 6) { status.textContent = 'Enter the 6-digit code from your phone.'; return; }
-    go.disabled = true;
-    const token = ++reconnectToken;
-    SyncLog.add('[ui] Connect pressed → polling with code');
-    const off = Sync.onMessage(m => { if (m.t === 'snapshot' && token === reconnectToken) { off(); booted = true; bootApp(); } });
-    const deadline = Date.now() + 45000;
-    let declined = false;
-    while (token === reconnectToken && !booted && Date.now() < deadline) {
-      status.textContent = 'Connecting…';
-      const ok = await Sync.join(c);
-      if (token !== reconnectToken) { off(); return; }
-      if (ok) {
-        status.textContent = 'Found your phone — connecting… (tap Accept on it when asked)';
-        // Wait for ICE + the phone's Accept + the first snapshot; bail out and
-        // retry if the attempt dies underneath us.
-        for (let i = 0; i < 120 && token === reconnectToken && !booted
-          && Sync.state !== 'closed' && Sync.state !== 'error'; i++) await sleep(500);
-        if (booted || token !== reconnectToken) { off(); return; }
-        if ((Sync.error || '').includes('declined')) { declined = true; break; }
-        status.textContent = 'Connection dropped — retrying…';
-      } else {
-        // No offer standing right now (phone asleep / previous room burnt) —
-        // the phone re-publishes within ~1s, so just wait and try again.
-        status.textContent = 'Looking for your phone… keep the code screen open on it.';
-        await sleep(1500);
-      }
-    }
-    off();
-    if (booted || token !== reconnectToken) return;
-    go.disabled = false;
-    status.textContent = declined ? 'The phone declined this device.'
-      : 'Couldn’t connect. Check both devices are on the SAME Wi-Fi and the code screen is open on your phone, then press Connect again.';
+    status.textContent = 'Connecting…'; go.disabled = true;
+    const off = Sync.onMessage(m => { if (m.t === 'snapshot') { off(); booted = true; bootApp(); } });
+    const ok = await Sync.join(c);
+    if (!ok) { off(); go.disabled = false; status.textContent = Sync.error || 'Could not connect.'; }
   }
 }
 
@@ -432,13 +377,8 @@ export function initSyncUI(opts) {
   window.__syncVersion = APP_VERSION;
   SyncLog.add(`Inkvoice ${APP_VERSION} — sync init (role: ${role})`);
 
-  // Keep the screen awake while actively connected (both roles) AND while the
-  // phone's pairing modal is open (a sleeping phone kills the pairing mid-type);
-  // let it sleep otherwise.
-  Sync.onState(s => {
-    if (s === 'connected') acquireWake();
-    else if ((s === 'closed' || s === 'error') && !(hostMode && $('sync-modal'))) releaseWake();
-  });
+  // Keep the screen awake while actively connected (both roles); let it sleep otherwise.
+  Sync.onState(s => { if (s === 'connected') acquireWake(); else if (s === 'closed' || s === 'error') releaseWake(); });
 
   // Sleep/wake handling — the biggest cause of "it won't reconnect":
   //  • Going HIDDEN (screen lock / app switch): drop the link NOW so the other
@@ -458,13 +398,6 @@ export function initSyncUI(opts) {
     const reallyConnected = Sync.state === 'connected' && Sync.pc && Sync.pc.connectionState === 'connected';
     if (role === 'phone') {
       if (reallyConnected) { acquireWake(); renderHub(); return; }
-      // Pairing modal still open? Re-arm it: the offer likely died while hidden.
-      if (hostMode && $('sync-modal')) {
-        acquireWake();
-        if (!['idle', 'closed', 'error'].includes(Sync.state)) Sync.disconnect();
-        setTimeout(restandHost, 300);
-        return;
-      }
       // Not genuinely connected. If paired, anything lingering is stale (a dead link
       // the events missed, or an offer that expired while suspended): clear it and the
       // advertising guard, then stand a fresh offer so the laptop's Re-Connect finds us.
@@ -492,21 +425,13 @@ export function initSyncUI(opts) {
     Sync.onState((s, err) => {
       if ($('sync-modal')) {                    // pairing / reconnect-host modal is open → drive its UI
         if (s === 'accept') hostBody('accept');
-        else if (s === 'error' || s === 'closed') {
-          // A dead attempt must not dead-end the pairing: keep the SAME code on
-          // screen and quietly stand a fresh offer under it, so the laptop's
-          // retrying Connect/Re-Connect picks it right back up.
-          if (hostMode === 'pair' && pairCode) hostBody('waiting', { code: pairCode });
-          else if (hostMode === 'reconnect') hostBody('reconnect-waiting');
-          else hostBody('error', { msg: err || 'Connection error.' });
-          if (hostMode) setTimeout(restandHost, 1000);
-        }
+        else if (s === 'error') hostBody('error', { msg: err || 'Connection error.' });
+        else if (s === 'closed') hostBody('error', { msg: 'The device disconnected.' });
         // 'connected' is handled below → we swap the modal for the hub lock screen
       }
       if (s === 'connected') {                  // any successful connection (first pairing or reconnect)
         localStorage.setItem(HAS_PAIRED, '1');
         manualMode = false; advertising = false;
-        hostMode = null; pairCode = null;
         Sync.send({ t: 'pairkey', key: deviceId() });   // (re)confirm our key so the guest can rejoin
         removeEl('sync-modal'); removeEl('sync-accept-modal');
         renderHub();                            // now connected → lock the phone

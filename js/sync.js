@@ -15,7 +15,7 @@
 
 // Bumped every sync change so the running build is visible on-screen — if this
 // doesn't match the latest, the deploy/service-worker cache didn't update.
-export const APP_VERSION = 'v40';
+export const APP_VERSION = 'v39';
 
 const SIGNAL_URL = window.__INKVOICE_SIGNAL_URL || 'https://inkvoiceapp.com/signal.php';
 
@@ -92,7 +92,7 @@ class SyncManager {
     // If we start connecting but never finish (ICE fails / peer vanished), don't
     // hang forever holding a claimed room — bail so we can re-advertise/retry.
     if (state === 'connecting') {
-      this._connWatch = setTimeout(() => { if (this.state === 'connecting') this._teardown('error', 'Connection timed out'); }, 15000);
+      this._connWatch = setTimeout(() => { if (this.state === 'connecting') this._teardown('error', 'Connection timed out'); }, 20000);
     }
     if (state === 'connected') this._startHeartbeat(); else this._stopHeartbeat();
     this._stateCbs.forEach(cb => { try { cb(state, error); } catch {} });
@@ -134,11 +134,6 @@ class SyncManager {
     const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
     pc.onconnectionstatechange = () => {
       dbg(`pc: ${pc.connectionState}`);
-      // 'failed' is terminal — bail NOW instead of letting the setup watchdog run
-      // out, so a botched ICE attempt retries in seconds, not tens of seconds.
-      if (pc.connectionState === 'failed' && !['idle', 'closed', 'error'].includes(this.state)) {
-        this._teardown('error', 'Connection failed'); return;
-      }
       if (['failed', 'disconnected', 'closed'].includes(pc.connectionState) && this.state === 'connected') {
         this._teardown('closed');
       }

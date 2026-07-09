@@ -9,11 +9,10 @@
 
 ## 🔴 ACTIVE ISSUE — PWA home-screen icon on Android (READ THIS FIRST)
 
-**As of 2026-07-09, v40 is BUILT and awaiting upload**
-(`_upload/inkvoice-app-COMPLETE-v40.zip`). **The icon saga is DONE** (v37 fixed the
-Firefox robot via URL cache-bust; v39 = exact native artwork). **v40 = robust pairing**
-(user: "works amazingly well but I have to enter the code several times"). signal.php
-UNCHANGED — no server re-upload needed. Do NOT re-run the fixes already tried below.
+**As of 2026-07-06, v39 is BUILT and awaiting upload**
+(`_upload/inkvoice-app-COMPLETE-v39.zip`). iPhone is fine. **v37 CONFIRMED WORKING on
+the user's Firefox** ("you are the master") — the -v2 URL cache-bust fixed the robot
+icon. Do NOT re-run the fixes already tried below — they are done.
 **v39 = icons rebuilt from the REAL Android app resources** (user compared v38 with the
 native launcher icon: "pretty much the same but not… the legend" — the swirl artwork
 differed slightly). Icons are now `mipmap-xxxhdpi/ic_launcher_{background,foreground}`
@@ -119,17 +118,17 @@ local icon cache is poisoned** — v37 busts it with NEW icon URLs. Awaiting con
 ### Deploy reminder for THIS repo
 - App is uploaded **manually** to Hostinger `public_html/app/`. Build a COMPLETE bundle
   (never partial — see memory `deploy-complete-bundle.md`). Last bundle:
-  `_upload/inkvoice-app-COMPLETE-v40.zip` (45 files, boot-tested: 0 errors, all icons +
+  `_upload/inkvoice-app-COMPLETE-v39.zip` (45 files, boot-tested: 0 errors, all icons +
   favicon.ico + manifest 200). After a fix, bump `sw.js` `CACHE` + `js/sync.js`
   `APP_VERSION` together, rebuild the full zip, tell the user to upload + extract into
   `public_html/app/`. On-screen version marker confirms deploy. **favicon.ico is now part
   of the bundle** (root-level, next to index.html).
 
 ### Suggested next steps for a fresh session
-1. **v40 uploaded?** If not, user uploads + extracts `inkvoice-app-COMPLETE-v40.zip` into
-   `public_html/app/` (app only; signal.php unchanged).
-2. **Verify first pairing feels instant on real devices** — one code entry should now be
-   enough even if the phone screen blinks off or the first attempt fails.
+1. **v39 uploaded?** If not, user uploads + extracts `inkvoice-app-COMPLETE-v39.zip` into
+   `public_html/app/`, then on the phone: remove the installed icon → open the site →
+   re-add to home screen (installed icons are cached; re-add is required).
+2. **Verify the launcher icon is teal-disc-with-black-ring** on both Firefox and Chrome.
 3. **KEY LESSON for any future icon change:** browsers (Firefox especially) cache icons
    BY URL and never refetch — every icon content change MUST ship under a NEW filename
    (bump -vN) in manifest.json + index.html + sw.js SHELL, keeping the old files on the
@@ -335,36 +334,6 @@ chevron clears content.
 ---
 
 ## 9. Changelog (newest first)
-
-### 2026-07-09 — v40: first pairing made robust — one code entry is enough
-User (after days of real use): sync works great BUT the first pairing takes several
-code attempts. Root causes + fixes (all in `js/syncui.js` + `js/sync.js`; signal.php
-untouched):
-- **No wake lock while the code was on screen** → phone auto-locked while the user
-  walked to the laptop and typed → page hidden → room torn down → "No device is
-  offering that code". NOW: `acquireWake()` for the whole time a host modal is open
-  (both pairing + reconnect-host); the wake-release on closed/error keeps the lock if
-  the modal is still up.
-- **A failed attempt burnt the one-time code** and the modal dead-ended at an error →
-  user had to fetch a NEW code and race. NOW: `restandHost()` — while the modal is
-  open, any closed/error silently re-publishes a fresh room under the SAME code
-  (`Sync.host({code})` clears the stale room first); the code on screen never changes.
-  Also re-stands on visibilitychange→visible while the modal is open, and after the
-  90s SETUP_TIMEOUT — so the displayed code stays valid indefinitely.
-- **Laptop Connect was one-shot** (and could hang disabled on "Connecting…"). NOW:
-  `doConnect` polls like doReconnect — retries `join(code)` for ~45s with live status
-  ("Looking for your phone…" / "Found your phone…" / "Connection dropped — retrying"),
-  auto-retries after a mid-connect death, stops on decline, re-enables the button with
-  a clear message on final failure. One press + one code entry = it keeps trying.
-- **`sync.js`: pc `failed` is now terminal in ANY active state** (was: only while
-  'connected') → a botched ICE attempt retries in seconds instead of eating the whole
-  20s watchdog (watchdog also 20s→15s).
-- **Verified** (Playwright 2-context, real WebRTC, fresh Python mock signaler —
-  `mock_signal.py` + `pairtest.mjs` in scratchpad, throwaway): happy-path pairing,
-  reclaim→Re-Connect regression, phone-hidden-mid-typing recovery (laptop polls, phone
-  re-stands same code, no retype), burnt-room recovery (ghost claim + close). ALL
-  GREEN + app boot test clean. **SW → v40 / APP_VERSION v40.** Bundle:
-  `_upload/inkvoice-app-COMPLETE-v40.zip` (45 files).
 
 ### 2026-07-06 — v39: icons = EXACT native Android launcher artwork
 - User compared the v38 web icon with the native app icon side by side ("pretty much the
