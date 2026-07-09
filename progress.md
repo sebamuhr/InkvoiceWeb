@@ -9,7 +9,18 @@
 
 ## 🔴 ACTIVE ISSUE — PWA home-screen icon on Android (READ THIS FIRST)
 
-**As of 2026-07-09, v42 is BUILT and awaiting upload**
+**As of 2026-07-09, v43 is BUILT and awaiting upload**
+(`_upload/inkvoice-app-COMPLETE-v43.zip`, 48 files). v43 = v42 + THREE surgical fixes
+for the user's real-device pairing breakage (screenshots showed their PHONE booting as
+a GUEST — the code/Accept flow can't work then): (1) `app.js` role gate: mobile-UA
+device (Android/iPhone) with data or installed is ALWAYS the phone; a no-touch
+non-mobile device can NEVER be the phone (stray `inkvoice_force_phone` on a laptop is
+auto-cleared → heals to guest screen); (2) wake lock held while the phone's pairing/
+reconnect modal is open (screen sleeping mid-type killed pairings); (3) laptop's
+Connect no longer hangs "Connecting…" forever — on a dead attempt the button returns
+with a clear message. Verified: 4 role tests + pairing/reconnect regressions + boot,
+all green. Older context below:
+**(previous) v42 was BUILT and awaiting upload**
 (`_upload/inkvoice-app-COMPLETE-v42.zip`, 48 files). **v42 = v39 code (byte-verified) +
 the SAME v39 icons under fresh filenames** (`icon-192-v4` / `icon-512-v4` /
 `maskable-512-v5`, byte-identical copies) because the user's device icon cache got
@@ -135,10 +146,13 @@ local icon cache is poisoned** — v37 busts it with NEW icon URLs. Awaiting con
   of the bundle** (root-level, next to index.html).
 
 ### Suggested next steps for a fresh session
-1. **v42 uploaded?** User extracts `inkvoice-app-COMPLETE-v42.zip` OVER `public_html/app/`
-   (do NOT empty the folder first!), confirms on-screen "v42", then removes + re-adds the
+1. **v43 uploaded?** User extracts `inkvoice-app-COMPLETE-v43.zip` OVER `public_html/app/`
+   (do NOT empty the folder first!), confirms on-screen "v43", then removes + re-adds the
    home-screen icon once. If icons break again after future redeploys → same cure: fresh
    icon filenames, identical bytes.
+2. **Verify with the user:** phone opens as the phone WITHOUT the "This device IS my
+   phone" link; code → Accept appears on the phone; lock phone → laptop drops. Those were
+   the user's three explicit demands (2026-07-09, angry — do not deviate from them).
 2. **Pairing friction is still an OPEN wish** (first pairing can take a few code tries)
    but the v40 batch-fix made things WORSE on real devices and was rolled back. Before
    any retry: get from the user WHAT went wrong with v40 exactly (no connect at all?
@@ -351,6 +365,24 @@ chevron clears content.
 ---
 
 ## 9. Changelog (newest first)
+
+### 2026-07-09 — v43: phone-is-always-the-phone + wake lock while pairing + no stuck "Connecting…"
+User screenshots proved their PHONE was booting as a GUEST (the laptop connect screen,
+"Inkvoice v39" visible) — so no code hosting, no Accept prompt, no hub/dim screen, no
+disconnect-on-lock: ALL the "missing features" were role misdetection, not missing code.
+Their laptop also hung on a disabled "Connecting…" when the phone side died mid-pairing.
+- `js/app.js`: role gate rebuilt. `UA_PHONE` (Android/iPhone UA) + `TOUCH`; a mobile-UA
+  device that is installed OR already has data always boots as the phone (browser tab
+  included); fresh phone visitors still get the install page; a no-touch non-mobile
+  device auto-clears a stray `inkvoice_force_phone` and heals back to the guest screen.
+- `js/syncui.js`: wake lock while the pairing/reconnect-host modal is open (screen
+  auto-lock mid-type was killing pairings — the ONE piece of the reverted v40 that the
+  user's symptoms directly demanded); guest onState now re-enables the Connect button
+  with a message when a non-booted attempt dies (was: stuck forever).
+- **Verified:** roletest (4 checks: misdetected phone boots app; fresh visitor gets
+  install page; stray-flag laptop heals; normal laptop unchanged) + pairing happy path +
+  reclaim/Re-Connect regression + boot test — ALL GREEN. **SW → v43 / APP_VERSION v43.**
+  Bundle: `_upload/inkvoice-app-COMPLETE-v43.zip` (48 files).
 
 ### 2026-07-09 — v42: v39 code + same icons under FRESH filenames (cache re-poisoned)
 - After the v41 rollback the user reported "not the same / app does not work / stuck" →

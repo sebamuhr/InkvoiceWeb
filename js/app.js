@@ -140,19 +140,29 @@ if('serviceWorker' in navigator){
 // `?app` forces the app in any browser, for previewing/screenshots.
 const FORCE = new URLSearchParams(location.search).has('app');
 // Manual override: if the user tapped "This is my phone" we always run as the host.
-const FORCE_PHONE = localStorage.getItem('inkvoice_force_phone') === '1';
+let FORCE_PHONE = localStorage.getItem('inkvoice_force_phone') === '1';
 const STANDALONE = window.matchMedia('(display-mode: standalone)').matches
   || window.navigator.standalone === true;
-// Phone detection: coarse pointer + a small VIEWPORT. Use innerWidth/innerHeight
-// (CSS pixels) — NOT screen.width, which many phones report in physical pixels
-// (e.g. 1080), which wrongly classified real phones as "not a phone" and booted
-// them as a guest so nothing could ever host/connect.
+// Phone detection, belt and braces. A REAL PHONE MUST NEVER BOOT AS A GUEST —
+// a guest phone can't host, so the laptop's code/Accept flow silently breaks.
+//  1) UA: every Android/iPhone browser says so in its user agent. This works even
+//     when the viewport heuristic fails (large phones, font scaling, etc.).
+//  2) Viewport: coarse pointer + small CSS viewport (NOT screen.width — physical
+//     px misclassified real phones).
+// And the mirror rule: a NO-touch, non-mobile device can never be the phone — a
+// stray "This is my phone" tap on a laptop is a mistake; drop the flag so the
+// laptop heals back to its connect screen on the next load.
+const UA_PHONE = /iPhone|iPod|Android[^)]*Mobile|Mobile[^)]*Android/i.test(navigator.userAgent);
+const TOUCH = navigator.maxTouchPoints > 0 || window.matchMedia('(pointer: coarse)').matches;
+if (FORCE_PHONE && !TOUCH && !UA_PHONE) { localStorage.removeItem('inkvoice_force_phone'); FORCE_PHONE = false; }
 const vmin = Math.min(window.innerWidth || 9999, window.innerHeight || 9999);
-const IS_PHONE = (navigator.maxTouchPoints > 0 || window.matchMedia('(pointer: coarse)').matches)
-  && vmin <= 560;
+const IS_PHONE = UA_PHONE || (TOUCH && vmin <= 560);
+// A phone that already holds data (or is installed) always boots as the phone,
+// browser tab or not; a FRESH phone visitor still gets the install page below.
+const HAS_DATA = !!(localStorage.getItem('inkvoice_profile') || localStorage.getItem('inkvoice_has_paired'));
 
 const appEl = document.getElementById('app');
-if(FORCE || FORCE_PHONE || (STANDALONE && IS_PHONE)){
+if(FORCE || FORCE_PHONE || (UA_PHONE && (STANDALONE || HAS_DATA)) || (STANDALONE && IS_PHONE)){
   // Phone (the boss) — runs the full app and can host a device connection.
   SyncUI.initSyncUI({ role:'phone' });
   render();

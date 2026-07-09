@@ -71,12 +71,15 @@ export async function openHostModal() {
       <button class="btn ghost block" id="sync-close" style="margin-top:14px">Close</button>
     </div></div>`));
   $('sync-close').onclick = () => {
-    if (Sync.state !== 'connected') Sync.disconnect();
+    if (Sync.state !== 'connected') { Sync.disconnect(); releaseWake(); }
     removeEl('sync-modal');
     manualMode = false;
     setTimeout(() => { advertiseTick(); renderHub(); renderPhoneReconnectBtn(); }, 800);   // resume hub advertising / lock screen
   };
   hostBody('starting');
+  // Hold the screen awake while the code is on display — the screen auto-locking
+  // while the user walks over and types on the laptop kills the pairing.
+  acquireWake();
   try {
     const code = await Sync.host();            // random 6-digit, needs human Accept
     hostBody('waiting', { code });
@@ -98,12 +101,13 @@ export async function openReconnectHost() {
       <button class="btn ghost block" id="sync-close" style="margin-top:10px">Close</button>
     </div></div>`));
   $('sync-close').onclick = () => {
-    if (Sync.state !== 'connected') Sync.disconnect();
+    if (Sync.state !== 'connected') { Sync.disconnect(); releaseWake(); }
     removeEl('sync-modal'); manualMode = false;
     setTimeout(() => { advertiseTick(); renderHub(); renderPhoneReconnectBtn(); }, 800);
   };
   $('sync-newdev').onclick = openHostModal;
   hostBody('reconnect-waiting');
+  acquireWake();   // keep the screen on while waiting for the laptop
   // Auto-accept: the user deliberately tapped "Reconnect my laptop", so no extra
   // confirm — the laptop links as soon as it presses Re-Connect.
   try { await Sync.host({ code: deviceId(), autoAccept: true }); hostBody('reconnect-waiting'); }
@@ -457,6 +461,14 @@ export function initSyncUI(opts) {
         const note = err || 'Connection lost.';
         if (getPairKey()) startGuestReconnect(appEl, note);
         else mountConnectScreen(appEl, note);
+      } else if ((s === 'closed' || s === 'error') && !booted) {
+        // A pairing attempt died mid-connect: don't leave the connect screen
+        // stuck on a disabled "Connecting…" forever — hand the button back.
+        const go = $('cc-go'), st = $('cc-status');
+        if (go && go.disabled) {
+          go.disabled = false;
+          if (st) st.textContent = (err || 'The connection dropped') + ' — check the code screen is still open on your phone, then press Connect again.';
+        }
       }
     });
   }
