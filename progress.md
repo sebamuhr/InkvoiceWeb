@@ -9,9 +9,19 @@
 
 ## 🔴 ACTIVE ISSUE — PWA home-screen icon on Android (READ THIS FIRST)
 
-**As of 2026-07-09, v47 is BUILT and awaiting upload**
-(`_upload/inkvoice-app-COMPLETE-v47.zip`). ⭐ **v47 ENDS the recurring "icon broke
-again" problem PERMANENTLY.** Root cause finally pinned: the server cached icons/favicon
+**As of 2026-07-09, v48 is BUILT and awaiting upload**
+(`_upload/inkvoice-app-COMPLETE-v48.zip`, INCLUDES `.htaccess`). v48 = v47 + **unpair now
+propagates**: if either side unpairs/forgets while connected, it sends `{t:'unpair'}` over
+the live channel so the OTHER side also forgets (laptop → code screen, phone → HAS_PAIRED
+cleared + reconnect button hidden) — no more stale "Re-Connect". **OPEN ITEM the user
+reported (NOT a code bug — needs their action):** their Linux laptop pairs with both the
+Android phone and the wife's iPhone fine, but NEITHER phone can pair to the wife's **Mac**
+(tried Safari AND Firefox). Both-browsers-fail-on-one-machine ⇒ macOS **Local Network
+privacy** blocking the browser (System Settings → Privacy & Security → Local Network →
+enable the browser) and/or the macOS firewall. The sync is pure LAN P2P (STUN-only, no
+TURN), so if macOS blocks LAN access there's no fallback by design. See §8 open items.
+Below is the v47 icon-cache fix (still relevant):
+**v47 ENDED the recurring "icon broke again" problem PERMANENTLY.** Root cause finally pinned: the server cached icons/favicon
 for days (the repo `.htaccess` only revalidated the *manifest*, not the icons), so after
 any redeploy the browser kept serving a stale icon under the SAME filename. v47 does BOTH:
 (a) republishes the identical icon bytes under fresh filenames (`icon-192-v5`,
@@ -166,12 +176,13 @@ local icon cache is poisoned** — v37 busts it with NEW icon URLs. Awaiting con
   of the bundle** (root-level, next to index.html).
 
 ### Suggested next steps for a fresh session
-1. **v47 uploaded?** User extracts `inkvoice-app-COMPLETE-v47.zip` OVER `public_html/app/`
-   (do NOT empty the folder first!) — **including the `.htaccess`** (it's in the zip now
-   and carries the icon-revalidation fix). Confirm on-screen "v47", then remove + re-add
-   the home-screen icon once. After v47's `.htaccess` is live, icons should NOT break on
-   future redeploys (they revalidate); if one ever does, the cure is still fresh filenames
-   + identical bytes, but it shouldn't be needed anymore.
+1. **v48 uploaded?** User extracts `inkvoice-app-COMPLETE-v48.zip` OVER `public_html/app/`
+   (do NOT empty the folder first!) — **including the `.htaccess`** (in the zip; carries
+   the icon-revalidation fix from v47). Confirm on-screen "v48". After v47+'s `.htaccess`
+   is live, icons should NOT break on future redeploys (they revalidate).
+2. **Mac pairing (open):** if the user follows up, the fix is almost certainly macOS
+   Local Network permission for the browser (Sonoma+), not code. Could add STUN/TURN as a
+   last resort but TURN relays data (breaks the no-cloud promise) — only with consent.
 2. **The user's REQUIRED sync flow (2026-07-09, do NOT deviate):** phone browser →
    INSTALL page first (download to run offline); once installed the phone is the boss;
    Profile → "Connect a device" → CODE on phone → paste on laptop browser → ACCEPT button
@@ -394,6 +405,25 @@ chevron clears content.
 ---
 
 ## 9. Changelog (newest first)
+
+### 2026-07-09 — v48: unpair propagates to the other side + Mac-pairing diagnosis
+- **Unpair/forget now notifies the connected peer.** Before, unpair on one side left the
+  other still showing "Re-Connect" (with a now-invalid key). `js/syncui.js`: `unpairPhone`
+  and `forgetPhone` gained a `propagate` param — when connected they `Sync.send({t:'unpair'})`,
+  clear their OWN pairing state IMMEDIATELY (so a 'closed' event in the gap can't
+  re-advertise/re-show the button), then tear down 250ms later to let the message flush.
+  New onMessage handlers: phone `{t:'unpair'}` → `unpairPhone(false)`, guest `{t:'unpair'}`
+  → `forgetPhone(false)` (no echo). Verified (Playwright 2-context, mock signaler):
+  phone-unpair → laptop drops to the CODE screen (not Re-Connect) + both keys cleared;
+  laptop-forget → phone HAS_PAIRED cleared + reconnect button gone; pairing regression
+  still green. (Caveat: only propagates while connected — an unpair done offline can't
+  tell the other side; acceptable.)
+- **Mac pairing (diagnosis only, no code change):** user reports Linux laptop pairs with
+  both phones, but neither phone pairs to the wife's Mac on Safari OR Firefox. Two browsers
+  failing on one machine points to macOS **Local Network privacy** (Sonoma+) blocking the
+  browser's LAN access, and/or the macOS firewall — not an app bug (pure LAN P2P, STUN-only,
+  no TURN, so a blocked LAN has no fallback). Advised: enable Local Network for the browser.
+- **SW → v48 / APP_VERSION v48.** Bundle: `_upload/inkvoice-app-COMPLETE-v48.zip` (+.htaccess).
 
 ### 2026-07-09 — v47: PERMANENT icon-cache fix (.htaccess revalidates icons) + fresh icon filenames
 The home-screen icon "broke again" after the v46 deploy. Verified our side was 100%

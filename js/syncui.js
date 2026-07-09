@@ -196,25 +196,44 @@ function showReconnectAccept() {
 }
 
 // PHONE: fully unpair — forget the laptop and start clean. New device key means any
-// old laptop must pair again from a fresh code.
-function unpairPhone() {
+// old laptop must pair again from a fresh code. If a laptop is connected right now, tell
+// it to forget us too (so it stops offering "Re-Connect"); `propagate=false` when we're
+// acting on an unpair the OTHER side already sent us.
+function unpairPhone(propagate = true) {
   SyncLog.add('[ui] unpair phone (forget laptop, new device key)');
-  Sync.disconnect();
+  const notify = propagate && Sync.state === 'connected';
+  if (notify) Sync.send({ t: 'unpair' });
+  // Clear the pairing IMMEDIATELY so the teardown's 'closed' event can't re-advertise
+  // or re-show the reconnect button in the gap.
   advertising = false;
   localStorage.removeItem(HAS_PAIRED);
-  localStorage.removeItem(DEVICE_KEY);   // regenerate a fresh secret next pairing
-  removeEl('sync-hub'); removeEl('sync-modal');
-  toast('Device unpaired — start a new connection any time');
+  localStorage.removeItem(DEVICE_KEY);     // regenerate a fresh secret next pairing
+  const finish = () => {
+    Sync.disconnect();
+    removeEl('sync-hub'); removeEl('sync-modal');
+    renderPhoneReconnectBtn();             // unpaired → hide the "Reconnect my laptop" button
+    toast('Device unpaired — start a new connection any time');
+  };
+  // Give the unpair message a moment to flush over the data channel before we tear down.
+  notify ? setTimeout(finish, 250) : finish();
 }
 
-// LAPTOP: forget the phone we paired with → back to a clean "enter a code" screen.
-function forgetPhone() {
+// LAPTOP: forget the phone we paired with → back to a clean "enter a code" screen. If the
+// phone is connected right now, tell it to forget us too. `propagate=false` when the phone
+// is the one that told US to forget.
+function forgetPhone(propagate = true) {
   SyncLog.add('[ui] forget phone (clear pair key)');
-  reconnectToken++;                      // stop any running reconnect loop
-  Sync.disconnect();
+  const notify = propagate && Sync.state === 'connected';
+  if (notify) Sync.send({ t: 'unpair' });
+  // Clear our key immediately so a 'closed' event in the gap can't offer Re-Connect.
+  reconnectToken++;                        // stop any running reconnect loop
   localStorage.removeItem(PAIR_KEY);
   booted = false;
-  mountConnectScreen(appEl, 'Forgotten. Enter a fresh code from your phone to connect again.');
+  const finish = () => {
+    Sync.disconnect();
+    mountConnectScreen(appEl, 'Forgotten. Enter a fresh code from your phone to connect again.');
+  };
+  notify ? setTimeout(finish, 250) : finish();
 }
 
 // On-device diagnostics — a live view of what the connection is doing, so issues on
@@ -432,6 +451,8 @@ export function initSyncUI(opts) {
     window.__syncUnpair = unpairPhone;
     window.__syncPaired = () => !!localStorage.getItem(HAS_PAIRED);
     window.__syncDiag = showDiag;
+    // If the laptop unpairs, forget it here too (no new-key echo back).
+    Sync.onMessage(m => { if (m.t === 'unpair') unpairPhone(false); });
     Sync.onState((s, err) => {
       if ($('sync-modal')) {                    // pairing / reconnect-host modal is open → drive its UI
         if (s === 'accept') hostBody('accept');
@@ -460,7 +481,10 @@ export function initSyncUI(opts) {
   } else { // guest
     window.__syncDiag = showDiag;
     window.__syncForget = forgetPhone;
-    Sync.onMessage(m => { if (m.t === 'pairkey' && m.key) setPairKey(m.key); });
+    Sync.onMessage(m => {
+      if (m.t === 'pairkey' && m.key) setPairKey(m.key);
+      else if (m.t === 'unpair') forgetPhone(false);   // phone unpaired us → drop our key, back to the code screen
+    });
     Sync.onState((s, err) => {
       if ((s === 'closed' || s === 'error') && booted) {
         booted = false;
