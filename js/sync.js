@@ -15,7 +15,7 @@
 
 // Bumped every sync change so the running build is visible on-screen — if this
 // doesn't match the latest, the deploy/service-worker cache didn't update.
-export const APP_VERSION = 'v46';
+export const APP_VERSION = 'v47';
 
 const SIGNAL_URL = window.__INKVOICE_SIGNAL_URL || 'https://inkvoiceapp.com/signal.php';
 

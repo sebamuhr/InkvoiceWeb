@@ -14,4 +14,12 @@
   <FilesMatch "manifest\.(json|webmanifest)$">
     Header set Cache-Control "public, max-age=0, must-revalidate"
   </FilesMatch>
+  # Icons + favicon: always revalidate too. The server's default was caching these
+  # for days, so after a redeploy the browser kept serving a stale/blank icon under
+  # the same filename and the home-screen icon "broke again". Revalidating (cheap
+  # 304 when unchanged) means a corrected icon is picked up immediately — no need to
+  # rename the icon files on every release.
+  <FilesMatch "\.(png|ico)$">
+    Header set Cache-Control "public, max-age=0, must-revalidate"
+  </FilesMatch>
 </IfModule>

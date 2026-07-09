@@ -9,8 +9,18 @@
 
 ## 🔴 ACTIVE ISSUE — PWA home-screen icon on Android (READ THIS FIRST)
 
-**As of 2026-07-09, v46 is BUILT and awaiting upload**
-(`_upload/inkvoice-app-COMPLETE-v46.zip`, 48 files). v46 tidies the pairing UI per user:
+**As of 2026-07-09, v47 is BUILT and awaiting upload**
+(`_upload/inkvoice-app-COMPLETE-v47.zip`). ⭐ **v47 ENDS the recurring "icon broke
+again" problem PERMANENTLY.** Root cause finally pinned: the server cached icons/favicon
+for days (the repo `.htaccess` only revalidated the *manifest*, not the icons), so after
+any redeploy the browser kept serving a stale icon under the SAME filename. v47 does BOTH:
+(a) republishes the identical icon bytes under fresh filenames (`icon-192-v5`,
+`icon-512-v5`, `maskable-512-v6`) to fix it NOW, AND (b) adds a `Cache-Control:
+max-age=0, must-revalidate` rule for `*.png`/`*.ico` to `.htaccess` so a changed icon is
+picked up immediately from now on — **no more renaming icons every release.** ⚠️ The
+v47 bundle now INCLUDES `.htaccess` (it didn't before) — the user must extract it too.
+Below is the v46 pairing-UI work:
+**(previous) v46 tidied the pairing UI per user:**
 (1) REMOVED the "📱 This device IS my phone — make it the host" rescue link (the
 UA-based role detection since v44 makes it unnecessary and the user found it confusing);
 (2) the VPN advice no longer sits up-front — it now appears ONLY inside the timeout/
@@ -156,10 +166,12 @@ local icon cache is poisoned** — v37 busts it with NEW icon URLs. Awaiting con
   of the bundle** (root-level, next to index.html).
 
 ### Suggested next steps for a fresh session
-1. **v46 uploaded?** User extracts `inkvoice-app-COMPLETE-v46.zip` OVER `public_html/app/`
-   (do NOT empty the folder first!), confirms on-screen "v46", then removes + re-adds the
-   home-screen icon once. If icons break again after future redeploys → same cure: fresh
-   icon filenames, identical bytes.
+1. **v47 uploaded?** User extracts `inkvoice-app-COMPLETE-v47.zip` OVER `public_html/app/`
+   (do NOT empty the folder first!) — **including the `.htaccess`** (it's in the zip now
+   and carries the icon-revalidation fix). Confirm on-screen "v47", then remove + re-add
+   the home-screen icon once. After v47's `.htaccess` is live, icons should NOT break on
+   future redeploys (they revalidate); if one ever does, the cure is still fresh filenames
+   + identical bytes, but it shouldn't be needed anymore.
 2. **The user's REQUIRED sync flow (2026-07-09, do NOT deviate):** phone browser →
    INSTALL page first (download to run offline); once installed the phone is the boss;
    Profile → "Connect a device" → CODE on phone → paste on laptop browser → ACCEPT button
@@ -382,6 +394,24 @@ chevron clears content.
 ---
 
 ## 9. Changelog (newest first)
+
+### 2026-07-09 — v47: PERMANENT icon-cache fix (.htaccess revalidates icons) + fresh icon filenames
+The home-screen icon "broke again" after the v46 deploy. Verified our side was 100%
+correct (all icon files valid teal PNGs, and manifest.json/index.html/sw.js references all
+consistent and present in the bundle). So it was the browser/PWA cache once more — but the
+REAL root cause was finally identified: the repo `.htaccess` only set `max-age=0,
+must-revalidate` on the *manifest*, NOT the icons, so icons took the server default cache
+(days). Same filename + long cache = a stale icon sticks after every redeploy; only a new
+filename escaped it (which is why it kept recurring — v42→v46 reused v4/v5 names).
+- Fix (both belt AND suspenders): (a) copied the identical icon bytes to `icon-192-v5`,
+  `icon-512-v5`, `maskable-512-v6` and pointed manifest.json + index.html + sw.js SHELL at
+  them (immediate fix, escapes the current stale cache); (b) added a `<FilesMatch
+  "\.(png|ico)$">` `Cache-Control: max-age=0, must-revalidate` block to `.htaccess` so
+  from now on a changed icon is revalidated (cheap 304) and picked up immediately — ends
+  the recurrence. favicon.ico?v=47. The deploy BUNDLE now INCLUDES `.htaccess` (previously
+  excluded) — user must extract it.
+- Boot-tested: all new icon URLs 200, app boots clean. **SW → v47 / APP_VERSION v47.**
+  Bundle: `_upload/inkvoice-app-COMPLETE-v47.zip`.
 
 ### 2026-07-09 — v46: remove "This device IS my phone" link, VPN advice only on timeout, "Connected to [name]"
 Three UI tweaks the user asked for after seeing v45:
