@@ -9,7 +9,17 @@
 
 ## 🔴 ACTIVE ISSUE — PWA home-screen icon on Android (READ THIS FIRST)
 
-**As of 2026-07-09, v43 is BUILT and awaiting upload**
+**As of 2026-07-09, v44 is BUILT and awaiting upload**
+(`_upload/inkvoice-app-COMPLETE-v44.zip`, 48 files). v44 FIXES the v43 regression: v43's
+`HAS_DATA` shortcut made a phone open the FULL APP in a plain browser tab, skipping the
+install page — the user (rightly) wants a phone browser to show the INSTALL page first
+so the app is downloaded and runs fully offline. v44 restores the v39 gate STRUCTURE
+(phone browser → install page; installed/standalone phone → boss; laptop → guest) but
+keeps the UA-based phone detection so the phone is never misdetected as a laptop. Kept
+the v43 wake-lock-during-pairing + unstick-Connecting fixes. Verified end-to-end:
+5 role checks + first-pairing(Accept on phone) + Re-Connect + LOCK-phone→laptop-drops→
+phone-unlocks + boot, ALL GREEN. Older context below:
+**(previous) v43 was BUILT and awaiting upload**
 (`_upload/inkvoice-app-COMPLETE-v43.zip`, 48 files). v43 = v42 + THREE surgical fixes
 for the user's real-device pairing breakage (screenshots showed their PHONE booting as
 a GUEST — the code/Accept flow can't work then): (1) `app.js` role gate: mobile-UA
@@ -146,13 +156,16 @@ local icon cache is poisoned** — v37 busts it with NEW icon URLs. Awaiting con
   of the bundle** (root-level, next to index.html).
 
 ### Suggested next steps for a fresh session
-1. **v43 uploaded?** User extracts `inkvoice-app-COMPLETE-v43.zip` OVER `public_html/app/`
-   (do NOT empty the folder first!), confirms on-screen "v43", then removes + re-adds the
+1. **v44 uploaded?** User extracts `inkvoice-app-COMPLETE-v44.zip` OVER `public_html/app/`
+   (do NOT empty the folder first!), confirms on-screen "v44", then removes + re-adds the
    home-screen icon once. If icons break again after future redeploys → same cure: fresh
    icon filenames, identical bytes.
-2. **Verify with the user:** phone opens as the phone WITHOUT the "This device IS my
-   phone" link; code → Accept appears on the phone; lock phone → laptop drops. Those were
-   the user's three explicit demands (2026-07-09, angry — do not deviate from them).
+2. **The user's REQUIRED sync flow (2026-07-09, do NOT deviate):** phone browser →
+   INSTALL page first (download to run offline); once installed the phone is the boss;
+   Profile → "Connect a device" → CODE on phone → paste on laptop browser → ACCEPT button
+   ON THE PHONE → connected → DIMMED screen ON THE PHONE while the laptop is active; any
+   connection loss → close/disconnect immediately (no half-made invoices). All verified in
+   scratchpad tests (roletest / pairtest_v39 / disconnecttest).
 2. **Pairing friction is still an OPEN wish** (first pairing can take a few code tries)
    but the v40 batch-fix made things WORSE on real devices and was rolled back. Before
    any retry: get from the user WHAT went wrong with v40 exactly (no connect at all?
@@ -365,6 +378,26 @@ chevron clears content.
 ---
 
 ## 9. Changelog (newest first)
+
+### 2026-07-09 — v44: restore install-first gate (v43 regressed it) — phone browser → install page
+v43 fixed the phone being misdetected as a laptop, but OVER-corrected: its `HAS_DATA`
+shortcut (`UA_PHONE && (STANDALONE || HAS_DATA)`) booted the FULL APP in a plain phone
+browser tab, so the app "opened in the browser" instead of showing the Add-to-Home-Screen
+install page. The user requires: phone in a browser → INSTALL page first (download → runs
+fully offline); only the INSTALLED (standalone) phone is the boss.
+- `js/app.js`: removed `HAS_DATA` + the extra first-branch condition. Gate is back to the
+  v39 structure — `if (FORCE || FORCE_PHONE || (STANDALONE && IS_PHONE))` phone/boss;
+  `else if (!IS_PHONE)` guest; `else` (phone, not installed) → `Landing.html()`. Kept
+  `IS_PHONE = UA_PHONE || (TOUCH && vmin<=560)` so the phone is never misread as a laptop,
+  and the stray-`inkvoice_force_phone`-on-a-laptop auto-heal.
+- Unchanged from v43 (kept): wake lock while the pairing/reconnect modal is open; guest
+  Connect button un-sticks (no more frozen "Connecting…").
+- **Verified** (Playwright, mock signaler): roletest (installed phone→app; phone browser
+  w/ data→INSTALL page; fresh visitor→install; laptop stray-flag heals; laptop→guest) +
+  pairing happy-path (code→Accept-on-phone→laptop boots→phone hub) + Re-Connect regression
+  + disconnecttest (lock phone → laptop drops immediately → phone dimmed screen clears) +
+  app boot. ALL GREEN. **SW → v44 / APP_VERSION v44.** Bundle:
+  `_upload/inkvoice-app-COMPLETE-v44.zip` (48 files).
 
 ### 2026-07-09 — v43: phone-is-always-the-phone + wake lock while pairing + no stuck "Connecting…"
 User screenshots proved their PHONE was booting as a GUEST (the laptop connect screen,

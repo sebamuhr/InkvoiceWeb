@@ -157,22 +157,21 @@ const TOUCH = navigator.maxTouchPoints > 0 || window.matchMedia('(pointer: coars
 if (FORCE_PHONE && !TOUCH && !UA_PHONE) { localStorage.removeItem('inkvoice_force_phone'); FORCE_PHONE = false; }
 const vmin = Math.min(window.innerWidth || 9999, window.innerHeight || 9999);
 const IS_PHONE = UA_PHONE || (TOUCH && vmin <= 560);
-// A phone that already holds data (or is installed) always boots as the phone,
-// browser tab or not; a FRESH phone visitor still gets the install page below.
-const HAS_DATA = !!(localStorage.getItem('inkvoice_profile') || localStorage.getItem('inkvoice_has_paired'));
 
 const appEl = document.getElementById('app');
-if(FORCE || FORCE_PHONE || (UA_PHONE && (STANDALONE || HAS_DATA)) || (STANDALONE && IS_PHONE)){
-  // Phone (the boss) — runs the full app and can host a device connection.
+if(FORCE || FORCE_PHONE || (STANDALONE && IS_PHONE)){
+  // Phone (the boss), INSTALLED → full offline app + can host a device connection.
   SyncUI.initSyncUI({ role:'phone' });
   render();
 } else if(!IS_PHONE){
-  // Desktop or tablet: not an independent copy — it connects to the phone over
+  // Desktop or laptop: not an independent copy — it connects to the phone over
   // the same Wi-Fi and mirrors it live. Show the connect screen; boot the full
   // app once paired, and return here if the link drops.
   SyncUI.initSyncUI({ role:'guest', bootApp:render, appEl });
   SyncUI.mountGuestStart(appEl);   // silent reconnect if we've paired before, else the code screen
 } else {
-  // Phone browser, not yet installed → show the Add-to-Home-Screen page.
+  // Phone browser, NOT yet installed → show the Add-to-Home-Screen page so the
+  // user installs it first and it runs fully offline. (Installing it makes it
+  // standalone, which the branch above then boots as the phone/boss.)
   appEl.innerHTML = Landing.html();
 }
