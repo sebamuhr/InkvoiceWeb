@@ -321,6 +321,10 @@ select.ctrl{appearance:none;-webkit-appearance:none;background-image:none}
 .connect-screen .cc-input:focus{border-color:var(--radio)}
 .connect-screen .cs-status{min-height:22px;margin-top:14px;color:var(--radio);font-size:15px;font-weight:600}
 .connect-screen .cs-foot{max-width:420px;color:var(--muted-2);font-size:13px;line-height:1.5;margin:26px 0 0}
+/* VPN hint — a gentle amber note shown on the pairing/reconnect screens (both roles) */
+.sync-vpn{max-width:420px;margin:16px auto 0;padding:10px 14px;font-size:13px;line-height:1.5;
+  border-radius:10px;background:rgba(244,165,43,.12);color:#a8631a;border:1px solid rgba(244,165,43,.35)}
+@media (prefers-color-scheme: dark){ .sync-vpn{color:#f0b866;background:rgba(244,165,43,.14)} }
 
 /* ---------- Dark low-power "hub" screen (phone, while connected) ---------- */
 .sync-hub{position:fixed;inset:0;z-index:400;background:#000;color:#555;

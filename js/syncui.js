@@ -122,11 +122,13 @@ function hostBody(kind, data = {}) {
     body.innerHTML = `
       <div class="sync-note">On your other device, open Inkvoice and enter this code:</div>
       <div class="sync-code">${data.code}</div>
-      <div class="sync-note muted">Waiting for a device to connect…</div>`;
+      <div class="sync-note muted">Waiting for a device to connect…</div>
+      <div class="sync-vpn">📶 Please disconnect your VPN to connect to your laptop — a VPN blocks the local Wi-Fi link.</div>`;
   } else if (kind === 'reconnect-waiting') {
     body.innerHTML = `
       <div class="sync-note">On your laptop, open Inkvoice and press <b>Re-Connect</b>. No code needed.</div>
-      <div class="sync-note muted" style="margin-top:8px">Keep this screen on — waiting for your laptop…</div>`;
+      <div class="sync-note muted" style="margin-top:8px">Keep this screen on — waiting for your laptop…</div>
+      <div class="sync-vpn">📶 Please disconnect your VPN to connect to your laptop — a VPN blocks the local Wi-Fi link.</div>`;
   } else if (kind === 'accept') {
     body.innerHTML = `
       <div class="sync-note"><b>A device wants to connect.</b><br>Only accept if this is your own device.</div>
@@ -294,6 +296,7 @@ export function mountConnectScreen(container, note = '') {
       <input id="cc-code" class="cc-input" inputmode="numeric" autocomplete="off" maxlength="6" placeholder="––––––" aria-label="6-digit code">
       <button class="btn block" id="cc-go" style="max-width:320px">Connect</button>
       <div id="cc-status" class="cs-status">${note}</div>
+      <div class="sync-vpn">📶 Please disconnect your VPN to connect to your phone — a VPN blocks the local Wi-Fi link.</div>
       <p class="cs-foot">Both devices must be on the same Wi-Fi. Data stays on your devices — the connection is peer-to-peer.</p>
       ${diagLink}
       ${phoneLink}
@@ -327,6 +330,7 @@ export function startGuestReconnect(container, note = '') {
       <p class="cs-lede">${note ? '<b>' + note + '</b><br>' : ''}Open <b>Inkvoice on your phone</b> (same Wi-Fi), press <b>Re-Connect</b>, then <b>tap Accept on your phone</b>. No code needed.</p>
       <button class="btn block" id="rc-go" style="max-width:320px">🔗 Re-Connect</button>
       <div id="rc-status" class="cs-status"></div>
+      <div class="sync-vpn">📶 Please disconnect your VPN to connect to your phone — a VPN blocks the local Wi-Fi link.</div>
       <button class="btn ghost" id="rc-manual" style="max-width:320px;margin-top:16px">Enter a code instead</button>
       <button class="btn ghost" id="rc-forget" style="max-width:320px;margin-top:10px">Forget this phone &amp; start over</button>
       ${diagLink}

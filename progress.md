@@ -9,17 +9,14 @@
 
 ## 🔴 ACTIVE ISSUE — PWA home-screen icon on Android (READ THIS FIRST)
 
-**As of 2026-07-09, v44 is BUILT and awaiting upload**
-(`_upload/inkvoice-app-COMPLETE-v44.zip`, 48 files). v44 FIXES the v43 regression: v43's
-`HAS_DATA` shortcut made a phone open the FULL APP in a plain browser tab, skipping the
-install page — the user (rightly) wants a phone browser to show the INSTALL page first
-so the app is downloaded and runs fully offline. v44 restores the v39 gate STRUCTURE
-(phone browser → install page; installed/standalone phone → boss; laptop → guest) but
-keeps the UA-based phone detection so the phone is never misdetected as a laptop. Kept
-the v43 wake-lock-during-pairing + unstick-Connecting fixes. Verified end-to-end:
-5 role checks + first-pairing(Accept on phone) + Re-Connect + LOCK-phone→laptop-drops→
-phone-unlocks + boot, ALL GREEN. Older context below:
-**(previous) v43 was BUILT and awaiting upload**
+**As of 2026-07-09, v45 is BUILT and awaiting upload**
+(`_upload/inkvoice-app-COMPLETE-v45.zip`, 48 files). v45 = v44 + a VPN hint on the
+pairing screens (see changelog). **KNOWN GOOD BEHAVIOUR (confirmed by the user):** a VPN
+on either device blocks the LAN peer-to-peer link even on the same Wi-Fi (normal WebRTC
+behaviour, NOT a bug — the design is pure P2P, no TURN relay, so nothing routes around a
+VPN). Turning the VPN off makes pairing work instantly. v45 just tells the user this on
+screen. v44 fixed the install-first gate (v43 had regressed it). Older context below:
+**(previous) v44/v43 were BUILT and awaiting upload**
 (`_upload/inkvoice-app-COMPLETE-v43.zip`, 48 files). v43 = v42 + THREE surgical fixes
 for the user's real-device pairing breakage (screenshots showed their PHONE booting as
 a GUEST — the code/Accept flow can't work then): (1) `app.js` role gate: mobile-UA
@@ -156,8 +153,8 @@ local icon cache is poisoned** — v37 busts it with NEW icon URLs. Awaiting con
   of the bundle** (root-level, next to index.html).
 
 ### Suggested next steps for a fresh session
-1. **v44 uploaded?** User extracts `inkvoice-app-COMPLETE-v44.zip` OVER `public_html/app/`
-   (do NOT empty the folder first!), confirms on-screen "v44", then removes + re-adds the
+1. **v45 uploaded?** User extracts `inkvoice-app-COMPLETE-v45.zip` OVER `public_html/app/`
+   (do NOT empty the folder first!), confirms on-screen "v45", then removes + re-adds the
    home-screen icon once. If icons break again after future redeploys → same cure: fresh
    icon filenames, identical bytes.
 2. **The user's REQUIRED sync flow (2026-07-09, do NOT deviate):** phone browser →
@@ -166,6 +163,10 @@ local icon cache is poisoned** — v37 busts it with NEW icon URLs. Awaiting con
    ON THE PHONE → connected → DIMMED screen ON THE PHONE while the laptop is active; any
    connection loss → close/disconnect immediately (no half-made invoices). All verified in
    scratchpad tests (roletest / pairtest_v39 / disconnecttest).
+3. **VPN caveat (confirmed real):** a VPN on either device breaks LAN pairing; the app now
+   shows "disconnect your VPN" on both pairing screens. If asked to make it work THROUGH a
+   VPN, that needs a TURN relay = data through a 3rd party = breaks the no-cloud promise;
+   only do it if the user explicitly accepts that trade-off.
 2. **Pairing friction is still an OPEN wish** (first pairing can take a few code tries)
    but the v40 batch-fix made things WORSE on real devices and was rolled back. Before
    any retry: get from the user WHAT went wrong with v40 exactly (no connect at all?
@@ -378,6 +379,20 @@ chevron clears content.
 ---
 
 ## 9. Changelog (newest first)
+
+### 2026-07-09 — v45: "disconnect your VPN" hint on the pairing screens
+User asked why the Accept button only appears with the VPN off (even on the same Wi-Fi).
+Diagnosis: NORMAL — the sync is pure LAN peer-to-peer (STUN-only, no TURN relay), and a
+VPN puts the phone on a different virtual network / blocks LAN access, so ICE can't find
+a direct path → data channel never opens → no `hello` → no Accept. Not a bug; VPN-off
+fixes it instantly. User asked for an on-screen hint on both sides.
+- `js/syncui.js`: added a `.sync-vpn` note — laptop connect + Re-Connect screens say
+  "Please disconnect your VPN to connect to your phone"; phone code + reconnect-host
+  modals say "…to connect to your laptop". `css/styles.css`: `.sync-vpn` amber note,
+  light + dark. Text-only/UI, no logic change.
+- **Verified** (Playwright): both hints render on their respective screens; app boots
+  clean, 0 errors. **SW → v45 / APP_VERSION v45.** Bundle:
+  `_upload/inkvoice-app-COMPLETE-v45.zip` (48 files).
 
 ### 2026-07-09 — v44: restore install-first gate (v43 regressed it) — phone browser → install page
 v43 fixed the phone being misdetected as a laptop, but OVER-corrected: its `HAS_DATA`
