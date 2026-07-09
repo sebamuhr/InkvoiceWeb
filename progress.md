@@ -9,14 +9,17 @@
 
 ## 🔴 ACTIVE ISSUE — PWA home-screen icon on Android (READ THIS FIRST)
 
-**As of 2026-07-09, v45 is BUILT and awaiting upload**
-(`_upload/inkvoice-app-COMPLETE-v45.zip`, 48 files). v45 = v44 + a VPN hint on the
-pairing screens (see changelog). **KNOWN GOOD BEHAVIOUR (confirmed by the user):** a VPN
-on either device blocks the LAN peer-to-peer link even on the same Wi-Fi (normal WebRTC
-behaviour, NOT a bug — the design is pure P2P, no TURN relay, so nothing routes around a
-VPN). Turning the VPN off makes pairing work instantly. v45 just tells the user this on
-screen. v44 fixed the install-first gate (v43 had regressed it). Older context below:
-**(previous) v44/v43 were BUILT and awaiting upload**
+**As of 2026-07-09, v46 is BUILT and awaiting upload**
+(`_upload/inkvoice-app-COMPLETE-v46.zip`, 48 files). v46 tidies the pairing UI per user:
+(1) REMOVED the "📱 This device IS my phone — make it the host" rescue link (the
+UA-based role detection since v44 makes it unnecessary and the user found it confusing);
+(2) the VPN advice no longer sits up-front — it now appears ONLY inside the timeout/
+failure message ("Timed out — Check your VPN, disconnect it or add Inkvoice as a trusted
+app…"), both roles; (3) the laptop shows a "Connected to [phone name]" toast on connect.
+**KNOWN GOOD BEHAVIOUR (confirmed by the user):** a VPN on either device blocks the LAN
+peer-to-peer link even on the same Wi-Fi — normal WebRTC, NOT a bug (pure P2P, no TURN
+relay). Older context below:
+**(previous) v45/v44/v43 were BUILT and awaiting upload**
 (`_upload/inkvoice-app-COMPLETE-v43.zip`, 48 files). v43 = v42 + THREE surgical fixes
 for the user's real-device pairing breakage (screenshots showed their PHONE booting as
 a GUEST — the code/Accept flow can't work then): (1) `app.js` role gate: mobile-UA
@@ -153,8 +156,8 @@ local icon cache is poisoned** — v37 busts it with NEW icon URLs. Awaiting con
   of the bundle** (root-level, next to index.html).
 
 ### Suggested next steps for a fresh session
-1. **v45 uploaded?** User extracts `inkvoice-app-COMPLETE-v45.zip` OVER `public_html/app/`
-   (do NOT empty the folder first!), confirms on-screen "v45", then removes + re-adds the
+1. **v46 uploaded?** User extracts `inkvoice-app-COMPLETE-v46.zip` OVER `public_html/app/`
+   (do NOT empty the folder first!), confirms on-screen "v46", then removes + re-adds the
    home-screen icon once. If icons break again after future redeploys → same cure: fresh
    icon filenames, identical bytes.
 2. **The user's REQUIRED sync flow (2026-07-09, do NOT deviate):** phone browser →
@@ -379,6 +382,26 @@ chevron clears content.
 ---
 
 ## 9. Changelog (newest first)
+
+### 2026-07-09 — v46: remove "This device IS my phone" link, VPN advice only on timeout, "Connected to [name]"
+Three UI tweaks the user asked for after seeing v45:
+- **Removed** the `📱 This device IS my phone — make it the host` rescue link from both
+  guest screens (+ its `phoneLink` const and `cs-imphone` wiring). It was a workaround for
+  the old viewport misdetection; UA-based detection (v44) makes it obsolete and the user
+  found it confusing/ugly. (`inkvoice_force_phone` is still read in app.js as a harmless
+  vestige + laptop auto-heal; nothing sets it via UI now.)
+- **VPN advice moved into the timeout path only** — removed the always-on `.sync-vpn`
+  amber box (all 4 screens) + its CSS. New `VPN_TIP` const ("Check your VPN — disconnect
+  it, or add Inkvoice as a trusted app.") is appended to: the phone modal error, the
+  laptop connect-attempt-died message, and the laptop Re-Connect give-up message. So the
+  VPN nudge only shows when a connection actually times out.
+- **Laptop "Connected to [phone name]" toast** — new `toastConnected(m)` reads
+  `m.snap.profile.businessName || ownerName` from the incoming snapshot; called on both
+  first-connect and reconnect.
+- **Verified** (Playwright + mock signaler): no phone link / no up-front VPN box on
+  laptop-connect, laptop-reconnect, phone-code screens; full pairing shows "Connected to
+  Sunrise Studio" toast; pairing happy-path + Re-Connect regressions green; app boots
+  clean. **SW → v46 / APP_VERSION v46.** Bundle: `_upload/inkvoice-app-COMPLETE-v46.zip`.
 
 ### 2026-07-09 — v45: "disconnect your VPN" hint on the pairing screens
 User asked why the Accept button only appears with the VPN off (even on the same Wi-Fi).

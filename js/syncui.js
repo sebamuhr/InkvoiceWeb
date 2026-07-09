@@ -29,6 +29,10 @@ let advertising = false;   // phone: a background reconnect offer is standing
 let manualMode = false;    // phone: the manual "Connect a device" modal is active
 let reconnectToken = 0;    // guest: bumps to cancel a running reconnect loop
 
+// Shown ONLY when a connection times out (not up-front) — a VPN on either device
+// blocks the local Wi-Fi peer-to-peer link even on the same network.
+const VPN_TIP = 'Check your VPN — disconnect it, or add Inkvoice as a trusted app.';
+
 const $ = id => document.getElementById(id);
 const elFrom = html => { const d = document.createElement('div'); d.innerHTML = html; return d.firstElementChild; };
 const removeEl = id => { const e = $(id); if (e) e.remove(); };
@@ -122,13 +126,11 @@ function hostBody(kind, data = {}) {
     body.innerHTML = `
       <div class="sync-note">On your other device, open Inkvoice and enter this code:</div>
       <div class="sync-code">${data.code}</div>
-      <div class="sync-note muted">Waiting for a device to connect…</div>
-      <div class="sync-vpn">📶 Please disconnect your VPN to connect to your laptop — a VPN blocks the local Wi-Fi link.</div>`;
+      <div class="sync-note muted">Waiting for a device to connect…</div>`;
   } else if (kind === 'reconnect-waiting') {
     body.innerHTML = `
       <div class="sync-note">On your laptop, open Inkvoice and press <b>Re-Connect</b>. No code needed.</div>
-      <div class="sync-note muted" style="margin-top:8px">Keep this screen on — waiting for your laptop…</div>
-      <div class="sync-vpn">📶 Please disconnect your VPN to connect to your laptop — a VPN blocks the local Wi-Fi link.</div>`;
+      <div class="sync-note muted" style="margin-top:8px">Keep this screen on — waiting for your laptop…</div>`;
   } else if (kind === 'accept') {
     body.innerHTML = `
       <div class="sync-note"><b>A device wants to connect.</b><br>Only accept if this is your own device.</div>
@@ -240,12 +242,8 @@ function showDiag() {
   $('diag-close').onclick = () => { off(); removeEl('sync-diag'); };
 }
 const diagLink = `<button class="linkbtn cs-diag" id="cs-diag" style="margin-top:14px;opacity:.6;font-size:12px">Connection diagnostics · Inkvoice ${APP_VERSION}</button>`;
-// Rescue link: if a real phone was misdetected as a laptop (it shows this connect
-// screen), let the user force host mode so it becomes the phone/boss.
-const phoneLink = `<button class="linkbtn" id="cs-imphone" style="display:block;margin:10px auto 0;opacity:.7;font-size:12px">📱 This device IS my phone — make it the host</button>`;
 function wireDiag() {
   const b = $('cs-diag'); if (b) b.onclick = showDiag;
-  const p = $('cs-imphone'); if (p) p.onclick = () => { localStorage.setItem('inkvoice_force_phone', '1'); location.reload(); };
 }
 
 // ---------------- PHONE: background reconnect advertising ----------------
@@ -296,10 +294,8 @@ export function mountConnectScreen(container, note = '') {
       <input id="cc-code" class="cc-input" inputmode="numeric" autocomplete="off" maxlength="6" placeholder="––––––" aria-label="6-digit code">
       <button class="btn block" id="cc-go" style="max-width:320px">Connect</button>
       <div id="cc-status" class="cs-status">${note}</div>
-      <div class="sync-vpn">📶 Please disconnect your VPN to connect to your phone — a VPN blocks the local Wi-Fi link.</div>
       <p class="cs-foot">Both devices must be on the same Wi-Fi. Data stays on your devices — the connection is peer-to-peer.</p>
       ${diagLink}
-      ${phoneLink}
     </div>`;
   wireDiag();
   const code = $('cc-code'), go = $('cc-go'), status = $('cc-status');
@@ -312,10 +308,18 @@ export function mountConnectScreen(container, note = '') {
     const c = code.value.replace(/\D/g, '');
     if (c.length !== 6) { status.textContent = 'Enter the 6-digit code from your phone.'; return; }
     status.textContent = 'Connecting…'; go.disabled = true;
-    const off = Sync.onMessage(m => { if (m.t === 'snapshot') { off(); booted = true; bootApp(); } });
+    const off = Sync.onMessage(m => { if (m.t === 'snapshot') { off(); booted = true; bootApp(); toastConnected(m); } });
     const ok = await Sync.join(c);
     if (!ok) { off(); go.disabled = false; status.textContent = Sync.error || 'Could not connect.'; }
   }
+}
+
+// Laptop: tell the user which phone they just linked to (name comes from the
+// incoming snapshot's profile — no store timing to worry about).
+function toastConnected(m) {
+  const p = m && m.snap && m.snap.profile;
+  const name = (p && (p.businessName || p.ownerName)) || 'your phone';
+  toast('Connected to ' + name);
 }
 
 // Returning device (already paired): a deliberate "Re-Connect" button. Pressing it
@@ -330,11 +334,9 @@ export function startGuestReconnect(container, note = '') {
       <p class="cs-lede">${note ? '<b>' + note + '</b><br>' : ''}Open <b>Inkvoice on your phone</b> (same Wi-Fi), press <b>Re-Connect</b>, then <b>tap Accept on your phone</b>. No code needed.</p>
       <button class="btn block" id="rc-go" style="max-width:320px">🔗 Re-Connect</button>
       <div id="rc-status" class="cs-status"></div>
-      <div class="sync-vpn">📶 Please disconnect your VPN to connect to your phone — a VPN blocks the local Wi-Fi link.</div>
       <button class="btn ghost" id="rc-manual" style="max-width:320px;margin-top:16px">Enter a code instead</button>
       <button class="btn ghost" id="rc-forget" style="max-width:320px;margin-top:10px">Forget this phone &amp; start over</button>
       ${diagLink}
-      ${phoneLink}
     </div>`;
   $('rc-go').onclick = doReconnect;
   $('rc-manual').onclick = () => mountConnectScreen(container);
@@ -352,7 +354,7 @@ async function doReconnect() {
   setStatus('Looking for your phone…');
   SyncLog.add('[ui] Re-Connect pressed → polling for the phone');
   const off = Sync.onMessage(m => {
-    if (m.t === 'snapshot' && token === reconnectToken) { off(); booted = true; bootApp(); }
+    if (m.t === 'snapshot' && token === reconnectToken) { off(); booted = true; bootApp(); toastConnected(m); }
   });
   // Keep trying for ~40s (like re-typing the code until it takes). The phone stands
   // a standing offer under the device key whenever Inkvoice is open on it.
@@ -374,7 +376,7 @@ async function doReconnect() {
   off();
   if (token !== reconnectToken || booted) return;
   if (btn) btn.disabled = false;
-  setStatus('Couldn’t reach your phone. Make sure Inkvoice is OPEN on your phone (same Wi-Fi), then press Re-Connect again.');
+  setStatus('Timed out — couldn’t reach your phone. ' + VPN_TIP + ' Make sure Inkvoice is open on your phone, then press Re-Connect again.');
 }
 
 // ---------------- global wiring ----------------
@@ -433,7 +435,7 @@ export function initSyncUI(opts) {
     Sync.onState((s, err) => {
       if ($('sync-modal')) {                    // pairing / reconnect-host modal is open → drive its UI
         if (s === 'accept') hostBody('accept');
-        else if (s === 'error') hostBody('error', { msg: err || 'Connection error.' });
+        else if (s === 'error') hostBody('error', { msg: (err || 'Timed out.') + ' ' + VPN_TIP });
         else if (s === 'closed') hostBody('error', { msg: 'The device disconnected.' });
         // 'connected' is handled below → we swap the modal for the hub lock screen
       }
@@ -471,7 +473,7 @@ export function initSyncUI(opts) {
         const go = $('cc-go'), st = $('cc-status');
         if (go && go.disabled) {
           go.disabled = false;
-          if (st) st.textContent = (err || 'The connection dropped') + ' — check the code screen is still open on your phone, then press Connect again.';
+          if (st) st.textContent = 'Timed out. ' + VPN_TIP + ' Make sure the code screen is open on your phone, then press Connect again.';
         }
       }
     });
