@@ -98,12 +98,17 @@ export function dialog({ title='', message='', buttons=[] }){
   });
 }
 
-// Share a File via the native share sheet where the browser supports it, else download
-// it. Returns 'shared' | 'cancelled' | 'downloaded'. We try navigator.share whenever it
-// exists (and canShare, if present, doesn't veto files) — only downloading when sharing
-// is genuinely unavailable or errors. IMPORTANT: prepare the File and call this
+// Share a File via the native share sheet where the browser supports it, else open the
+// file so the user can save/share it from the browser's own viewer. Returns
+// 'shared' | 'cancelled' | 'opened'. IMPORTANT: prepare the File and call this
 // SYNCHRONOUSLY inside the tap handler — an await before navigator.share drops the user
 // gesture and makes iOS/Android reject the share.
+//
+// Native file sharing works on Chrome-family browsers; Firefox for Android does NOT
+// support sharing files, so there we fall back. We deliberately OPEN the file in a new
+// tab (the real PDF/PNG, which the browser renders and offers to share/save) rather than
+// forcing an <a download>, because a blob download in a standalone PWA pops a useless
+// blank (about:blank) tab on Firefox.
 export async function shareFile(file, title=''){
   const canFiles = !navigator.canShare || navigator.canShare({ files:[file] });
   if(navigator.share && canFiles){
@@ -111,8 +116,12 @@ export async function shareFile(file, title=''){
     catch(e){ if(e && e.name === 'AbortError') return 'cancelled'; /* else fall back */ }
   }
   const url = URL.createObjectURL(file);
-  const a = document.createElement('a'); a.href = url; a.download = file.name;
-  document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 4000);
-  return 'downloaded';
+  const win = window.open(url, '_blank');
+  if(!win){
+    // Pop-up blocked → fall back to a direct download link.
+    const a = document.createElement('a'); a.href = url; a.download = file.name;
+    document.body.appendChild(a); a.click(); a.remove();
+  }
+  setTimeout(() => URL.revokeObjectURL(url), 60000);   // keep the URL alive for the opened tab
+  return 'opened';
 }

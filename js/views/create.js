@@ -27,7 +27,13 @@ function fromExisting(src, dup){
   d.b2g = !!d.buyerReference;
   if(dup){ d.id=uid(); d.isEdit=false; d.invoiceNumber=peekNextNumber(d.type);
     d.creationDateMillis=todayMs(); d.dueDateMillis=null; d.status='Pending'; }
-  else d.isEdit=true;
+  else {
+    d.isEdit=true;
+    // Remember the original identity so that if the user switches the type (e.g. turns
+    // this quotation into an invoice) we CREATE a new document and leave the original
+    // untouched — instead of overwriting it. Switching back restores editing it.
+    d.origType=src.type; d.origId=src.id; d.origNumber=src.invoiceNumber;
+  }
   return d;
 }
 
@@ -145,7 +151,19 @@ export function mount(ctx){
   const setType = (type) => {
     if(draft.type===type) return;
     draft.type = type;
-    if(!draft.isEdit) draft.invoiceNumber = peekNextNumber(type);
+    if(draft.origId != null){
+      // Editing an existing document. Switching to the OTHER type = convert → a NEW
+      // document (new id, next number of that type); the original stays. Switching back
+      // to the original type restores editing it in place.
+      if(type === draft.origType){
+        draft.id = draft.origId; draft.invoiceNumber = draft.origNumber; draft.isEdit = true;
+      }else{
+        draft.id = draft.convId || (draft.convId = uid());
+        draft.invoiceNumber = peekNextNumber(type); draft.isEdit = false;
+      }
+    }else if(!draft.isEdit){
+      draft.invoiceNumber = peekNextNumber(type);
+    }
     $('r-inv').classList.toggle('on', type==='invoice');
     $('r-quo').classList.toggle('on', type==='quotation');
     document.querySelectorAll('.section-h')[1].textContent = `${type==='quotation'?'Quotation':'Invoice'} Items`;

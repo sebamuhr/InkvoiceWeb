@@ -42,6 +42,6 @@ export function mount(ctx){
       file = new File([pdfBlob(inv)], pdfFilename(inv), { type:'application/pdf' });
     }catch(e){ toast('PDF engine still loading — try again'); return; }
     const how = await shareFile(file, String(inv.invoiceNumber||'Invoice'));
-    if(how==='downloaded') toast('Saved to your files — open it to share');
+    if(how==='opened') toast('Sharing files isn’t supported here — opened the PDF so you can share or save it');
   });
 }

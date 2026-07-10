@@ -9,14 +9,15 @@
 
 ## 🔴 ACTIVE ISSUE — PWA home-screen icon on Android (READ THIS FIRST)
 
-**As of 2026-07-10, v49 is BUILT and awaiting upload**
-(`_upload/inkvoice-app-COMPLETE-v49.zip`, INCLUDES `.htaccess`). v49 = six UI/behaviour
-parity fixes (see changelog 2026-07-10): quotation single-tap "Select Action" dialog
-(Edit / View-Share), require an item description (fixes false "Add at least one item"),
-**system back now works** (History-API routing; was blank), Create back → "Discard
-changes?" dialog, biz card centered, and Share PDF/Card use one hardened `shareFile`
-helper. All Playwright-verified. Sync/pairing regressions still green. **Below is older
-context.**
+**As of 2026-07-10, v50 is BUILT and awaiting upload**
+(`_upload/inkvoice-app-COMPLETE-v50.zip`, INCLUDES `.htaccess`). v50 = v49 + three
+follow-up fixes (changelog 2026-07-10 v50): **edit-a-quotation-→-invoice now creates a
+NEW invoice and keeps the quote** (this was the cause of "2 invoices N1" — numbering is
+otherwise correct), and the **Share fallback opens the actual PDF/PNG instead of a blank
+tab** (about:blank) when the browser lacks Web-Share files (e.g. Firefox Android). v49
+delivered six UI parity fixes (quotation action dialog, item-description requirement,
+History-API system-back + discard dialog, centered biz card, hardened share). All
+Playwright-verified; sync regressions green. **Below is older context.**
 
 **(2026-07-09) v48** = v47 + **unpair now propagates**: if either side unpairs/forgets while connected, it sends `{t:'unpair'}` over
 the live channel so the OTHER side also forgets (laptop → code screen, phone → HAS_PAIRED
@@ -183,13 +184,13 @@ local icon cache is poisoned** — v37 busts it with NEW icon URLs. Awaiting con
   of the bundle** (root-level, next to index.html).
 
 ### Suggested next steps for a fresh session
-1. **v49 uploaded?** User extracts `inkvoice-app-COMPLETE-v49.zip` OVER `public_html/app/`
-   (do NOT empty the folder first!) — **including the `.htaccess`** (icon-revalidation fix
-   from v47). Confirm on-screen "v49".
-2. **Verify on the real phone:** system back no longer blanks; Create back asks to discard;
-   quotation tap shows Edit / View-Share; adding an item then PDF works; biz card centered;
-   Share PDF and Send Card open the share sheet (if still download-only, capture what
-   `navigator.share`/`canShare({files})` report — likely Firefox-Android lacking file share).
+1. **v50 uploaded?** User extracts `inkvoice-app-COMPLETE-v50.zip` OVER `public_html/app/`
+   (do NOT empty the folder first!) — **including the `.htaccess`**. Confirm on-screen "v50".
+2. **Verify on the real phone:** editing a quotation and switching it to an invoice makes a
+   NEW invoice (quote stays), invoice numbers stay correlative (no more duplicate N1);
+   Share PDF/Card opens the share sheet on Chrome, or opens the PDF/PNG (not about:blank) on
+   Firefox — if still not a share sheet on Firefox that's a Firefox-Android Web-Share
+   limitation (no file support), confirmable via the diag/console.
 3. **Mac pairing (still open):** likely macOS Local Network permission for the browser
    (Sonoma+), not code. TURN relay would fix it but routes data off-device — only with consent.
 2. **The user's REQUIRED sync flow (2026-07-09, do NOT deviate):** phone browser →
@@ -414,6 +415,32 @@ chevron clears content.
 ---
 
 ## 9. Changelog (newest first)
+
+### 2026-07-10 — v50: edit-quote→invoice keeps the quote (fixes "2 invoices N1") + share opens file not about:blank
+- **Edit a quotation and switch it to an invoice → NEW invoice, quote preserved**
+  (`js/views/create.js`). Was: editing kept the SAME `draft.id` and (when converting) the
+  old number with `isEdit=true`, so `generate()` OVERWROTE the quotation as an invoice AND
+  skipped `consumeNumber` — so the invoice counter never advanced and the next real invoice
+  reused the number → the user's "2 invoices N1". Fix: `fromExisting` records
+  `origType/origId/origNumber`; `setType` now, for an edited doc, converts to a NEW document
+  (fresh `convId` + `peekNextNumber(newType)`, `isEdit=false`) when the type differs from the
+  original, and restores in-place editing when switched back. So convert = new invoice with
+  the next number, original quote untouched, quote counter intact.
+  NOTE: the plain numbering code (`store.js peek/consumeNumber`) was verified CORRECT — the
+  duplicate came only from this convert path.
+- **Share fallback opens the file, not a blank tab** (`js/util.js shareFile`). When the
+  browser can't share files (Firefox Android), it now `window.open(blobURL)` so the actual
+  PDF/PNG opens (renders in the browser's viewer to share/save) instead of the `<a download>`
+  that popped an about:blank tab in a standalone PWA. Anchor-download only if the pop-up is
+  blocked. Toast updated ("Sharing files isn't supported here — opened the … so you can
+  share or save it"). Native share sheet path (Chrome) unchanged.
+- **Verified** (Playwright): numtest — 10 checks (two invoices N001/N002 correlative, no
+  duplicates, convert-quote shows N003 + quote preserved + new invoice, next quote Q002,
+  in-place quote edit doesn't spawn a doc); v49 UI suite (16) still green incl. share
+  fallback; pairing/unpair regressions green; boot 0 errors. **Test gotcha discovered:** a
+  Playwright `addInitScript` seed re-runs inside the blob: PDF iframe (same origin → shares
+  localStorage) and resets seeded counters — guard the seed with a flag. **SW → v50 /
+  APP_VERSION v50.** Bundle: `_upload/inkvoice-app-COMPLETE-v50.zip` (+.htaccess).
 
 ### 2026-07-10 — v49: six UI/behaviour parity fixes
 All matched to the Android reference. New reusable helpers in `js/util.js`:

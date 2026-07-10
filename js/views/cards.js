@@ -133,7 +133,7 @@ async function shareCard(p){
     }catch(e){ toast('Could not prepare the card'); return; }
   }
   const how = await shareFile(file, p.businessName || 'Business Card');
-  if(how==='downloaded') toast('Card saved as PNG — open it to share');
+  if(how==='opened') toast('Sharing files isn’t supported here — opened the card so you can share or save it');
 }
 
 function roundRectPath(ctx, x, y, w, h, r){
