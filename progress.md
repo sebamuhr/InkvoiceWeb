@@ -9,9 +9,16 @@
 
 ## 🔴 ACTIVE ISSUE — PWA home-screen icon on Android (READ THIS FIRST)
 
-**As of 2026-07-09, v48 is BUILT and awaiting upload**
-(`_upload/inkvoice-app-COMPLETE-v48.zip`, INCLUDES `.htaccess`). v48 = v47 + **unpair now
-propagates**: if either side unpairs/forgets while connected, it sends `{t:'unpair'}` over
+**As of 2026-07-10, v49 is BUILT and awaiting upload**
+(`_upload/inkvoice-app-COMPLETE-v49.zip`, INCLUDES `.htaccess`). v49 = six UI/behaviour
+parity fixes (see changelog 2026-07-10): quotation single-tap "Select Action" dialog
+(Edit / View-Share), require an item description (fixes false "Add at least one item"),
+**system back now works** (History-API routing; was blank), Create back → "Discard
+changes?" dialog, biz card centered, and Share PDF/Card use one hardened `shareFile`
+helper. All Playwright-verified. Sync/pairing regressions still green. **Below is older
+context.**
+
+**(2026-07-09) v48** = v47 + **unpair now propagates**: if either side unpairs/forgets while connected, it sends `{t:'unpair'}` over
 the live channel so the OTHER side also forgets (laptop → code screen, phone → HAS_PAIRED
 cleared + reconnect button hidden) — no more stale "Re-Connect". **OPEN ITEM the user
 reported (NOT a code bug — needs their action):** their Linux laptop pairs with both the
@@ -176,13 +183,15 @@ local icon cache is poisoned** — v37 busts it with NEW icon URLs. Awaiting con
   of the bundle** (root-level, next to index.html).
 
 ### Suggested next steps for a fresh session
-1. **v48 uploaded?** User extracts `inkvoice-app-COMPLETE-v48.zip` OVER `public_html/app/`
-   (do NOT empty the folder first!) — **including the `.htaccess`** (in the zip; carries
-   the icon-revalidation fix from v47). Confirm on-screen "v48". After v47+'s `.htaccess`
-   is live, icons should NOT break on future redeploys (they revalidate).
-2. **Mac pairing (open):** if the user follows up, the fix is almost certainly macOS
-   Local Network permission for the browser (Sonoma+), not code. Could add STUN/TURN as a
-   last resort but TURN relays data (breaks the no-cloud promise) — only with consent.
+1. **v49 uploaded?** User extracts `inkvoice-app-COMPLETE-v49.zip` OVER `public_html/app/`
+   (do NOT empty the folder first!) — **including the `.htaccess`** (icon-revalidation fix
+   from v47). Confirm on-screen "v49".
+2. **Verify on the real phone:** system back no longer blanks; Create back asks to discard;
+   quotation tap shows Edit / View-Share; adding an item then PDF works; biz card centered;
+   Share PDF and Send Card open the share sheet (if still download-only, capture what
+   `navigator.share`/`canShare({files})` report — likely Firefox-Android lacking file share).
+3. **Mac pairing (still open):** likely macOS Local Network permission for the browser
+   (Sonoma+), not code. TURN relay would fix it but routes data off-device — only with consent.
 2. **The user's REQUIRED sync flow (2026-07-09, do NOT deviate):** phone browser →
    INSTALL page first (download to run offline); once installed the phone is the boss;
    Profile → "Connect a device" → CODE on phone → paste on laptop browser → ACCEPT button
@@ -405,6 +414,43 @@ chevron clears content.
 ---
 
 ## 9. Changelog (newest first)
+
+### 2026-07-10 — v49: six UI/behaviour parity fixes
+All matched to the Android reference. New reusable helpers in `js/util.js`:
+`dialog({title,message,buttons})` (promise-based modal) and `shareFile(file,title)`
+(native share sheet with download fallback, gesture-safe).
+1. **Quotation list → single-tap "Select Action" dialog** (`js/views/list.js`): tapping a
+   quotation opens Edit / View-Share (labels + body text match `QuotationListScreen.kt`).
+   Invoices keep tapping straight to the viewer (Android invoices have no Edit). Card body
+   now uses `data-open` + a mount handler instead of an inline `onclick`.
+2. **Invoice viewer share button** — already top-right (`.pdf-topbar` is space-between); no
+   change needed beyond confirming.
+3. **"Add at least one item" false error** (`js/views/create.js` `saveItem`): the counter/
+   PDF-button used `items.length` but `validate()` needs a non-empty description, so an
+   item saved with a blank description looked added but failed. Fix: require a description
+   when saving the item (toast + keep modal open otherwise). Now count/button/validation
+   agree.
+4. **System back → blank, + Create discard dialog** (`js/app.js`): ROOT CAUSE was no
+   History API — nav only mutated in-memory state, so system/gesture back exited the SPA.
+   Now hash-based History: `navigate()` push/replaceState, a `popstate` handler renders the
+   previous route, `startApp()` establishes Home as the base, and the chevron (`goBack()`)
+   uses `history.back()`. Leaving `/create` via back (chevron OR system) shows Android's
+   "Discard changes?" dialog (exact text) — Cancel stays, Discard leaves.
+5. **Biz card centered** (`js/views/cards.js` + `.card-screen`/`.card-center` CSS): card +
+   slider + Share button block is now vertically + horizontally centered in the viewport.
+6. **Share PDF / Send Card** (`view.js`, `cards.js`): both use the new `shareFile` helper —
+   calls `navigator.share({files})` whenever `share` exists (not gated on `canShare`),
+   downloads only if share is absent/errors, surfaces a toast on download. Card PNG is now
+   PRE-RENDERED on load/colour-change so the Share tap calls `navigator.share`
+   synchronously (an `await` before it dropped the gesture → forced-download on Android).
+   NOTE: if the user's Android browser is Firefox, Web Share may lack file support → download
+   is the only possible outcome there (Chrome supports it) — verify on device.
+- **Verified** (Playwright, `?app`, seeded): 16 checks green — quotation dialog + Edit/View
+  routes, invoice direct-to-viewer, blank-desc item blocked / with-desc generates, system
+  back → discard dialog (Cancel stays / Discard leaves), normal back returns to prior screen
+  (not blank), card centered, share download-fallback. Sync pairing/unpair/role regressions
+  still green; boot test 0 pageerrors. **SW → v49 / APP_VERSION v49.** Bundle:
+  `_upload/inkvoice-app-COMPLETE-v49.zip` (+.htaccess).
 
 ### 2026-07-09 — v48: unpair propagates to the other side + Mac-pairing diagnosis
 - **Unpair/forget now notifies the connected peer.** Before, unpair on one side left the

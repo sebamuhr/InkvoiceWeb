@@ -1,7 +1,7 @@
 // ===== Inkvoice — app shell, router, bottom tab bar =====
 import { Icon } from './icons.js';
 import { getProfile } from './store.js';
-import { toast } from './util.js';
+import { toast, dialog } from './util.js';
 import * as Home from './views/dashboard.js';
 import * as Create from './views/create.js';
 import * as List from './views/list.js';
@@ -32,12 +32,54 @@ window.tabBlocked = () => toast(PROFILE_MSG);
 // Re-render just the tab bar (e.g. after Save Profile) so gated tabs unlock in place.
 window.refreshTabs = () => { const n = document.querySelector('.tabbar'); if(n) n.outerHTML = tabbar(state.key); };
 
+// ---- Navigation is mirrored into browser history (hash-based, so a reload on a
+// static host never 404s). This is what makes the phone's SYSTEM back button work:
+// each nav() pushes a history entry, and popstate re-renders the previous route
+// instead of the browser exiting the SPA (which showed a blank page). Re-navigating
+// to the SAME route (e.g. a list filter refresh) replaces rather than stacks. ----
+const routeToHash = (route) => '#' + route;
+const hashToRoute = () => (location.hash && location.hash.length > 1) ? location.hash.slice(1) : '/';
+
 export function navigate(path){
+  if(path === state.route) history.replaceState({}, '', routeToHash(path));
+  else                     history.pushState({}, '', routeToHash(path));
   state.route = path;
   render();
   window.scrollTo(0,0);
 }
 window.nav = navigate;
+// Back arrow (chevron) and the phone system back both route through history, so
+// "back is back" everywhere and the Create discard guard (popstate) applies to both.
+window.goBack = () => history.back();
+
+// popstate = the user pressed system/gesture back (or our chevron via history.back()).
+// Guard leaving the Create screen with an unsaved draft: re-assert the Create entry and
+// ask "Discard changes?" — only proceed back if they confirm (matches Android's
+// unconditional back-confirm on the create screen).
+let leaveConfirmed = false;   // set once the user chose Discard, so the re-fired popstate passes through
+let askingLeave = false;      // a discard dialog is already open
+window.addEventListener('popstate', async () => {
+  const newRoute = hashToRoute();
+  const wasCreate = state.route.split('?')[0] === '/create';
+  const nowCreate = newRoute.split('?')[0] === '/create';
+  if(wasCreate && !nowCreate && !leaveConfirmed){
+    if(askingLeave) return;
+    askingLeave = true;
+    history.pushState({}, '', routeToHash(state.route));   // stay on Create while we ask
+    const discard = await dialog({
+      title:'Discard changes?',
+      message:'Are you sure you want to leave? All data entered will be lost.',
+      buttons:[{ label:'Cancel', value:false, class:'ghost' }, { label:'Discard', value:true }],
+    });
+    askingLeave = false;
+    if(discard){ leaveConfirmed = true; history.back(); }
+    return;
+  }
+  leaveConfirmed = false;
+  state.route = newRoute;
+  render();
+  window.scrollTo(0,0);
+});
 
 function parse(route){
   const [path, query=''] = route.split('?');
@@ -77,6 +119,7 @@ function render(){
   if(isGatedPath(path) && !isProfileValid()){
     toast(PROFILE_MSG);
     state.route = '/profile'; path = '/profile'; params = new URLSearchParams();
+    history.replaceState({}, '', routeToHash('/profile'));   // keep the URL/hash honest after the redirect
   }
   const match = ROUTES.find(r => r.test(path)) || ROUTES[0];
   state.key = match.key;
@@ -88,9 +131,20 @@ function render(){
   const isView = path.startsWith('/view/');
   const showBack = !isHome && !isView;
   app.classList.toggle('with-back', showBack);
-  const back = showBack ? `<button class="backhome" onclick="nav('/')" aria-label="Home">${Icon.back}</button>` : '';
+  const back = showBack ? `<button class="backhome" onclick="goBack()" aria-label="Back">${Icon.back}</button>` : '';
   app.innerHTML = back + `<div class="fade">${match.view.html(ctx)}</div>` + tabbar(match.key);
   if(match.view.mount) match.view.mount(ctx);
+}
+
+// First render of the full app: establish Home as the history base so back/chevron
+// always have somewhere to return to, then render the initial route (from the hash,
+// so a reload on a deep link restores that screen).
+function startApp(){
+  const initial = hashToRoute();
+  state.route = initial;
+  history.replaceState({}, '', routeToHash('/'));
+  if(initial !== '/') history.pushState({}, '', routeToHash(initial));
+  render();
 }
 
 // Device sync: apply changes from a connected peer and refresh the screen —
@@ -162,12 +216,12 @@ const appEl = document.getElementById('app');
 if(FORCE || FORCE_PHONE || (STANDALONE && IS_PHONE)){
   // Phone (the boss), INSTALLED → full offline app + can host a device connection.
   SyncUI.initSyncUI({ role:'phone' });
-  render();
+  startApp();
 } else if(!IS_PHONE){
   // Desktop or laptop: not an independent copy — it connects to the phone over
   // the same Wi-Fi and mirrors it live. Show the connect screen; boot the full
   // app once paired, and return here if the link drops.
-  SyncUI.initSyncUI({ role:'guest', bootApp:render, appEl });
+  SyncUI.initSyncUI({ role:'guest', bootApp:startApp, appEl });
   SyncUI.mountGuestStart(appEl);   // silent reconnect if we've paired before, else the code screen
 } else {
   // Phone browser, NOT yet installed → show the Add-to-Home-Screen page so the

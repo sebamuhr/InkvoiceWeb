@@ -1,5 +1,5 @@
 import { getProfile, getCardColor, saveCardColor } from '../store.js';
-import { esc, toast } from '../util.js';
+import { esc, toast, shareFile } from '../util.js';
 import { Icon } from '../icons.js';
 
 // Background palette — same gradient the Android app's slider uses.
@@ -33,6 +33,10 @@ function isLight(hex){
 }
 
 let bgColor = '#FFFFFF';
+// Pre-rendered card PNG kept ready so the Share button can share SYNCHRONOUSLY inside
+// the tap (an await before navigator.share drops the user gesture → share is rejected).
+let cardPng = null;        // { file } for the current colour, or null while (re)rendering
+let cardPngColor = null;   // the hex the ready PNG was drawn for
 
 export function html(){
   const p = getProfile();
@@ -46,8 +50,9 @@ export function html(){
     .map(l => `<div class="bc-line">${esc(l)}</div>`).join('');
   const gradient = `linear-gradient(90deg, ${PALETTE.join(',')})`;
 
-  return `<div class="screen">
+  return `<div class="screen card-screen">
     <div class="topbar"><h1>Business Card</h1></div>
+    <div class="card-center">
     <div class="bizcard" id="card">
       <div class="bc-logo">${p.logoUri ? `<img src="${esc(p.logoUri)}" alt="">` : `<div class="c"></div>`}</div>
       <div class="bc-info">
@@ -63,6 +68,7 @@ export function html(){
     </div>
 
     <button class="btn block" id="share" style="margin-top:16px">${Icon.share} Share Card</button>
+    </div>
   </div>`;
 }
 
@@ -70,6 +76,15 @@ export function mount(){
   const p = getProfile();
   const card = document.getElementById('card');
   if(!card) return;
+
+  // (Re)draw the shareable PNG for a colour and keep it ready for a synchronous share.
+  const regenPng = async (hex) => {
+    cardPng = null; cardPngColor = null;
+    const blob = await drawCardPng(p, hex);
+    const name = (p.businessName || p.ownerName || 'card').replace(/\s+/g,'-');
+    cardPng = new File([blob], `${name}-card.png`, { type:'image/png' });
+    cardPngColor = hex;
+  };
 
   const applyColor = (hex) => {
     bgColor = hex;
@@ -85,11 +100,12 @@ export function mount(){
   const slider = document.getElementById('cc-slider');
   slider.value = String(Math.round(nearestPos(bgColor) * 1000));
   slider.addEventListener('input', e => applyColor(colorAt(e.target.value / 1000)));
-  // Persist + sync only the final colour (not every drag frame).
-  slider.addEventListener('change', e => saveCardColor(colorAt(e.target.value / 1000)));
+  // Persist + sync + re-render the shareable PNG only on the final colour (not every drag frame).
+  slider.addEventListener('change', e => { const hex = colorAt(e.target.value / 1000); saveCardColor(hex); regenPng(hex); });
   applyColor(bgColor);
+  regenPng(bgColor);
 
-  document.getElementById('share').addEventListener('click', () => shareCard(p, bgColor));
+  document.getElementById('share').addEventListener('click', () => shareCard(p));
 }
 
 function nearestPos(hex){
@@ -103,22 +119,21 @@ function nearestPos(hex){
   return best / (PALETTE.length - 1);
 }
 
-// ---- draw the card to a PNG and share it (mirrors captureBusinessCardAsBitmap) ----
-async function shareCard(p, hex){
-  try{
-    const blob = await drawCardPng(p, hex);
-    const name = (p.businessName || p.ownerName || 'card').replace(/\s+/g,'-');
-    const file = new File([blob], `${name}-card.png`, { type:'image/png' });
-    if(navigator.canShare && navigator.canShare({ files:[file] })){
-      await navigator.share({ files:[file], title: p.businessName || 'Business Card' });
-    } else {
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; a.download = file.name;
-      document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 4000);
-      toast('Card saved as PNG');
-    }
-  }catch(e){ /* user cancelled or share unavailable */ }
+// ---- share the pre-rendered card PNG (mirrors captureBusinessCardAsBitmap) ----
+async function shareCard(p){
+  // Use the PNG pre-rendered for the current colour so navigator.share is called
+  // synchronously in the tap. Only if it isn't ready yet (tapped mid-render) do we
+  // build it here — that path may lose the gesture and fall back to download.
+  let file = (cardPng && cardPngColor === bgColor) ? cardPng : null;
+  if(!file){
+    try{
+      const blob = await drawCardPng(p, bgColor);
+      const name = (p.businessName || p.ownerName || 'card').replace(/\s+/g,'-');
+      file = new File([blob], `${name}-card.png`, { type:'image/png' });
+    }catch(e){ toast('Could not prepare the card'); return; }
+  }
+  const how = await shareFile(file, p.businessName || 'Business Card');
+  if(how==='downloaded') toast('Card saved as PNG — open it to share');
 }
 
 function roundRectPath(ctx, x, y, w, h, r){

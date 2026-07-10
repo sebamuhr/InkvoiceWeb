@@ -1,5 +1,5 @@
 import { getInvoices, saveInvoice, deleteInvoice, getProfile } from '../store.js';
-import { money, money2, fmtISO, esc, toast } from '../util.js';
+import { money, money2, fmtISO, esc, toast, dialog } from '../util.js';
 import { Icon } from '../icons.js';
 import { mountAdSlot } from '../ads.js';
 
@@ -67,7 +67,7 @@ function card(inv){
   const paid = inv.status==='Paid';
   const prefix = (inv.type==='quotation') ? 'Q' : 'N';
   return `<div class="doccard">
-    <div style="min-width:0;flex:1;cursor:pointer" onclick="nav('/view/${inv.id}')">
+    <div style="min-width:0;flex:1;cursor:pointer" data-open="${inv.id}">
       <div class="no">${prefix}° ${esc(String(inv.invoiceNumber).replace(/^[NQ]/,''))}</div>
       <div class="client">${esc(inv.clientName||'—')}</div>
       <div class="meta">Created: ${fmtISO(inv.creationDateMillis)}<br>Total: ${money2(inv.grandTotal,p.currency)}</div>
@@ -85,6 +85,26 @@ export function mount(ctx){
 
   const f = document.getElementById('filter');
   if(f) f.addEventListener('change', e => { filterStatus = e.target.value; ctx.navigate(ctx.path); });
+
+  // Tapping a card: invoices open the PDF viewer directly (Android has no edit for
+  // invoices). Quotations open a "Select Action" dialog — View / Share or Edit —
+  // matching the Android QuotationListScreen action dialog.
+  document.querySelectorAll('[data-open]').forEach(el => el.addEventListener('click', async () => {
+    const id = el.dataset.open;
+    const inv = getInvoices().find(i => i.id === id);
+    if(!inv) return;
+    if((inv.type||'invoice') !== 'quotation'){ ctx.navigate('/view/'+id); return; }
+    const choice = await dialog({
+      title:'Select Action',
+      message:'What do you want to do with this quotation?',
+      buttons:[
+        { label:'Edit', value:'edit', class:'ghost' },
+        { label:'View / Share', value:'view' },
+      ],
+    });
+    if(choice==='view') ctx.navigate('/view/'+id);
+    else if(choice==='edit') ctx.navigate('/create?edit='+id);
+  }));
 
   document.querySelectorAll('[data-toggle]').forEach(el => el.addEventListener('click', e => {
     e.stopPropagation();

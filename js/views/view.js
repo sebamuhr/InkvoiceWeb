@@ -1,6 +1,6 @@
 import { getInvoice } from '../store.js';
 import { pdfBlob, pdfFilename } from '../pdf.js';
-import { toast } from '../util.js';
+import { toast, shareFile } from '../util.js';
 import { Icon } from '../icons.js';
 
 function currentId(ctx){ return ctx.path.split('/')[2]; }
@@ -37,18 +37,11 @@ export function mount(ctx){
   }catch(e){ toast('PDF engine still loading — try again'); }
 
   document.getElementById('share').addEventListener('click', async () => {
+    let file;
     try{
-      const blob = pdfBlob(inv);
-      const file = new File([blob], pdfFilename(inv), { type:'application/pdf' });
-      if(navigator.canShare && navigator.canShare({ files:[file] })){
-        await navigator.share({ files:[file], title:inv.invoiceNumber });
-      }else{
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a'); a.href=url; a.download=pdfFilename(inv);
-        document.body.appendChild(a); a.click(); a.remove();
-        setTimeout(()=>URL.revokeObjectURL(url), 4000);
-        toast('Saved — use Files/Share to send');
-      }
-    }catch(e){ /* user cancelled */ }
+      file = new File([pdfBlob(inv)], pdfFilename(inv), { type:'application/pdf' });
+    }catch(e){ toast('PDF engine still loading — try again'); return; }
+    const how = await shareFile(file, String(inv.invoiceNumber||'Invoice'));
+    if(how==='downloaded') toast('Saved to your files — open it to share');
   });
 }

@@ -71,3 +71,48 @@ export function toast(msg){
   clearTimeout(toastTimer);
   toastTimer = setTimeout(()=>t.classList.remove('show'), 2200);
 }
+
+// A small modal dialog. `buttons` = [{label, value, class}]; resolves with the chosen
+// value (or null if dismissed by tapping the backdrop). Reuses the .modal-overlay/.modal
+// styling. Used for the quotation action menu and the Create "Discard changes?" prompt.
+export function dialog({ title='', message='', buttons=[] }){
+  return new Promise(resolve => {
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `<div class="modal">
+      ${title ? `<h3 style="margin:0 0 10px">${esc(title)}</h3>` : ''}
+      ${message ? `<div class="dlg-msg">${esc(message)}</div>` : ''}
+      <div class="dlg-actions"></div>
+    </div>`;
+    const acts = overlay.querySelector('.dlg-actions');
+    const done = v => { overlay.remove(); resolve(v); };
+    buttons.forEach(b => {
+      const el = document.createElement('button');
+      el.className = 'btn ' + (b.class || '');
+      el.textContent = b.label;
+      el.addEventListener('click', () => done(b.value));
+      acts.appendChild(el);
+    });
+    overlay.addEventListener('click', e => { if(e.target === overlay) done(null); });
+    document.body.appendChild(overlay);
+  });
+}
+
+// Share a File via the native share sheet where the browser supports it, else download
+// it. Returns 'shared' | 'cancelled' | 'downloaded'. We try navigator.share whenever it
+// exists (and canShare, if present, doesn't veto files) — only downloading when sharing
+// is genuinely unavailable or errors. IMPORTANT: prepare the File and call this
+// SYNCHRONOUSLY inside the tap handler — an await before navigator.share drops the user
+// gesture and makes iOS/Android reject the share.
+export async function shareFile(file, title=''){
+  const canFiles = !navigator.canShare || navigator.canShare({ files:[file] });
+  if(navigator.share && canFiles){
+    try{ await navigator.share({ files:[file], title }); return 'shared'; }
+    catch(e){ if(e && e.name === 'AbortError') return 'cancelled'; /* else fall back */ }
+  }
+  const url = URL.createObjectURL(file);
+  const a = document.createElement('a'); a.href = url; a.download = file.name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+  return 'downloaded';
+}

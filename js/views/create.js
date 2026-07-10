@@ -240,7 +240,12 @@ export function mount(ctx){
   }
   function closeItem(){ $('item-modal').classList.add('hidden'); }
   function saveItem(){
-    const it={ id:uid(), description:$('m-desc').value, quantity:parseFloat($('m-qty').value)||0, unitPrice:parseFloat($('m-price').value)||0 };
+    // A description is required — otherwise the item counts toward "N/20 items" and
+    // enables the PDF button, but PDF validation (which needs a description) rejects it,
+    // producing the confusing "Add at least one item" after items were clearly added.
+    const desc = $('m-desc').value.trim();
+    if(!desc){ toast('Add a description for this item'); $('m-desc').focus(); return; }
+    const it={ id:uid(), description:desc, quantity:parseFloat($('m-qty').value)||0, unitPrice:parseFloat($('m-price').value)||0 };
     if(editingItem>=0){ it.id=draft.items[editingItem].id; draft.items[editingItem]=it; } else draft.items.push(it);
     closeItem(); renderItems(); refreshSummary(); syncPdfBtn();
   }

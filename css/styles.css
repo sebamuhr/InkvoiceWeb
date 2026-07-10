@@ -262,6 +262,10 @@ select.ctrl{appearance:none;-webkit-appearance:none;background-image:none}
 @keyframes fade{from{opacity:0}to{opacity:1}}
 
 /* ---------- Business card (logo left, info right — matches Android canvas) ---------- */
+/* Biz Card screen: center the card block vertically + horizontally in the viewport
+   (under the title), matching the Android BusinessCardDialog centered layout. */
+.card-screen{display:flex;flex-direction:column}
+.card-screen .card-center{flex:1 1 auto;display:flex;flex-direction:column;justify-content:center}
 .bizcard{aspect-ratio:1000/650;background:#fff;border:1.5px solid #cfccd8;border-radius:16px;
   display:flex;align-items:center;gap:22px;padding:26px}
 .bizcard .bc-logo{width:30%;aspect-ratio:1;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
@@ -303,6 +307,10 @@ select.ctrl{appearance:none;-webkit-appearance:none;background-image:none}
 .modal-overlay{position:fixed;inset:0;z-index:200;background:#0006;display:flex;align-items:center;justify-content:center;padding:20px}
 .modal{background:var(--bg);border-radius:24px;padding:22px;width:100%;max-width:440px}
 .modal h3{font-size:22px;font-weight:800}
+/* Generic confirm/action dialog (util.js dialog()) */
+.dlg-msg{font-size:15px;line-height:1.5;color:var(--ink);margin:0 0 18px}
+.dlg-actions{display:flex;gap:12px}
+.dlg-actions .btn{flex:1}
 
 /* ---------- Device sync ---------- */
 .sync-body .sync-note{font-size:15px;line-height:1.5;color:var(--ink);margin:2px 0}
