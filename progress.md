@@ -9,9 +9,11 @@
 
 ## 🔴 ACTIVE ISSUE — PWA home-screen icon on Android (READ THIS FIRST)
 
-**As of 2026-07-11, v51 is BUILT and awaiting upload**
-(`_upload/inkvoice-app-COMPLETE-v51.zip`, INCLUDES `.htaccess`). ⭐⭐ **v51 = the FINAL,
-bulletproof icon fix.** Root cause of the endless "lost the icon again": I kept RENAMING
+**Latest build: v53** (`_upload/inkvoice-app-COMPLETE-v53.zip`, INCLUDES `.htaccess`) —
+removed the custom in-app PDF viewer; PDFs now open directly in the browser (v53), on top of
+the v52 list-ordering fix and the v51 icon work. Icon files + `?v=51` query UNCHANGED so the
+home-screen icon carries over. ⭐⭐ **v51 introduced the FINAL, bulletproof icon fix** (still
+in force). Root cause of the endless "lost the icon again": I kept RENAMING
 icon files every release (icon-…-v2…v6) and telling the user to re-add the home-screen
 icon each deploy — every re-add re-fetched and could hit a stale cache; and the fix
 depended on a HIDDEN `.htaccess` that may never have extracted on the server.
@@ -436,6 +438,58 @@ chevron clears content.
 ---
 
 ## 9. Changelog (newest first)
+
+### 2026-07-11 — v53: no custom in-app PDF viewer — open PDFs straight in the browser
+The old `/view` screen faked Android's `PdfViewerActivity` with an `<iframe>`, a custom Share
+button, AND the app's bottom tab bar. On phones the iframe can't render a PDF inline (shows a
+download placeholder), the bottom menu shouldn't be there, and Share fell back to
+`window.open` — so the PDF opened, then opened AGAIN on Share = a confusing double step (worse
+on Firefox Android, which can't Web-Share files at all). **User's decision:** on the web
+version, for ALL browsers, drop the fake viewer and just show the real PDF in the browser's
+own viewer (which has native Share/Save/Print). Users know how to share a PDF from the browser.
+- **New `openInvoicePdf(inv)` in `js/pdf.js`:** builds the blob and opens it ONCE in a new
+  browser tab (`window.open`), falling back to a download only if the tab is blocked. Must be
+  called from a user gesture (it is, in every path below).
+- **`create.js` `generate()`:** after saving, calls `openInvoicePdf(inv)` and navigates the
+  app to `/invoices` (or `/quotations`) so the just-saved doc is at the top when the user
+  switches back. No more `navigate('/view/…')`.
+- **`list.js`:** invoice tap → `openInvoicePdf`; quotation "Select Action" → View / Share →
+  `openInvoicePdf` (Edit still → `/create?edit=`). Dialog behaviour unchanged.
+- **Removed:** `js/views/view.js` (deleted), its `/view` route + `isView`/`/view` special-
+  casing in `app.js`, the `/view` entry in `sw.js` SHELL, and the `.pdf-screen/.pdf-topbar/
+  .btn-share/.pdf-stage/.pdf-doc` CSS. `shareFile()` stays in `util.js` — still used by the
+  **business card** share (`cards.js`), which is unchanged.
+- **Consequence (by design):** because the app is an installed standalone PWA, the PDF opens
+  in the real browser (a separate tab), NOT inside the app window — that's where the browser's
+  Share/Save lives. The invoice is already saved and listed; the user switches back to the app.
+- **Verified (Playwright):** invoice tap, quotation View/Share, and Create→Generate each open
+  exactly one `blob:` PDF tab (no `/view`, no double); Generate saves +1 invoice and lands on
+  `/invoices` with the new doc on top; a legacy `/view/<id>` deep-link no longer crashes
+  (falls through to Home). Full UI regression + ordering suites green; built bundle boots 0
+  pageerrors, 0 4xx. **SW → v53 / APP_VERSION v53.** Bundle:
+  `_upload/inkvoice-app-COMPLETE-v53.zip` (+.htaccess). Icons + `?v=51` UNCHANGED.
+
+### 2026-07-11 — v52: invoice/quotation list ordering fixed (newest at top, by NUMBER)
+The lists were "the wrong way around": on any given day the newest document appeared at the
+BOTTOM. Root cause — the web sorted by `creationDateMillis` DESC, but that field is
+**day-granular** (midnight): same-day documents tie, so the sort fell back to insertion order
+(oldest-first). The Android reference does NOT sort by date — it sorts by the **numeric part
+of the document number, descending** (`extractNumber("N"/"Q", …)`, `InvoiceListScreen.kt` /
+`QuotationListScreen.kt`), so the highest number is always at the top.
+- **Fix (`js/views/list.js`):** sort by `docNum(inv)` (integer parsed from `N001`/`Q061`)
+  descending, with `creationDateMillis` only as a tiebreaker for equal numbers. Added a small
+  `docNum()` helper mirroring Android's `extractNumber()`.
+- **Ads were already correct** and left unchanged: `cardsWithAds()` anchors one ad every 5
+  documents counted from the OLDEST (bottom) — `below = len-1-i; if(below>0 && below%5===0)` —
+  byte-for-byte the same math as Android (`invoicesBelow = size-1-index`). This is Adsterra on
+  web (AdMob can't run in a browser), but the placement policy matches.
+- **Verified (Playwright):** for 11 invoices the rendered order top→bottom is
+  `11, AD, 10,9,8,7,6, AD, 5,4,3,2,1` — i.e. bottom→top `1,2,3,4,5,AD,6,7,8,9,10,AD,11`,
+  exactly the user's spec. 4 and 5 docs show no ad; 6 docs show one ad between 5 and 6. The
+  full UI regression suite stays green; built bundle boots 0 pageerrors, 0 4xx. **SW → v52 /
+  APP_VERSION v52.** Bundle: `_upload/inkvoice-app-COMPLETE-v52.zip` (+.htaccess). Icon files
+  and `?v=51` query are UNCHANGED (artwork didn't change — per the ICON POLICY, only bump
+  `?v=` when the artwork changes), so the home-screen icon persists across this update.
 
 ### 2026-07-11 — v51: PERMANENT icon fix — stable filenames + query cache-bust (stop renaming!)
 The icon broke on updates because the "cure" (renaming icon files every release + telling

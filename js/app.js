@@ -5,7 +5,6 @@ import { toast, dialog } from './util.js';
 import * as Home from './views/dashboard.js';
 import * as Create from './views/create.js';
 import * as List from './views/list.js';
-import * as View from './views/view.js';
 import * as Profile from './views/profile.js';
 import * as Cards from './views/cards.js';
 import * as Landing from './views/landing.js';
@@ -14,11 +13,11 @@ import * as SyncUI from './syncui.js';
 
 const state = { route:'/', key:'' };
 
-// Create / Invoices / Quotations / Biz Card (and the PDF viewer) are locked until the
-// profile has the essentials — matches the real Inkvoice: business OR owner name + a
-// valid email. Profile stays open so the user can fill it in.
+// Create / Invoices / Quotations / Biz Card are locked until the profile has the
+// essentials — matches the real Inkvoice: business OR owner name + a valid email.
+// Profile stays open so the user can fill it in.
 const GATED = new Set(['/create', '/invoices', '/quotations', '/cards']);
-const isGatedPath = (path) => GATED.has(path) || path.startsWith('/view/');
+const isGatedPath = (path) => GATED.has(path);
 export function isProfileValid(){
   const p = getProfile();
   const nameOk = (p.businessName||'').trim() || (p.ownerName||'').trim();
@@ -93,7 +92,6 @@ const ROUTES = [
   { test:p => p==='/quotations',        view:List,    key:'invoices', arg:'quotation' },
   { test:p => p==='/cards',             view:Cards,   key:'cards' },
   { test:p => p==='/profile',           view:Profile, key:'profile' },
-  { test:p => p.startsWith('/view/'),   view:View,    key:'' },
 ];
 
 function tabbar(active){
@@ -126,10 +124,9 @@ function render(){
   const ctx = { params, navigate, arg:match.arg, path };
   const app = document.getElementById('app');
   // iPhone has no OS back button — a small top-left chevron returns to Home.
-  // The Home screen and the full-screen PDF viewer (its own bar) are excluded.
+  // The Home screen is excluded (nothing to go back to).
   const isHome = path==='/' || path==='';
-  const isView = path.startsWith('/view/');
-  const showBack = !isHome && !isView;
+  const showBack = !isHome;
   app.classList.toggle('with-back', showBack);
   const back = showBack ? `<button class="backhome" onclick="goBack()" aria-label="Back">${Icon.back}</button>` : '';
   app.innerHTML = back + `<div class="fade">${match.view.html(ctx)}</div>` + tabbar(match.key);
@@ -148,11 +145,11 @@ function startApp(){
 }
 
 // Device sync: apply changes from a connected peer and refresh the screen —
-// but never repaint a screen the user is actively filling in (Create/Profile)
-// or the full-screen PDF viewer, which would wipe their in-progress work.
+// but never repaint a screen the user is actively filling in (Create/Profile),
+// which would wipe their in-progress work.
 function rerenderLive(){
   const path = state.route.split('?')[0];
-  if(path==='/create' || path==='/profile' || path.startsWith('/view/')) return;
+  if(path==='/create' || path==='/profile') return;
   render();
 }
 initSyncBridge(rerenderLive);

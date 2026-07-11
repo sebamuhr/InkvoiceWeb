@@ -618,3 +618,28 @@ export function pdfFilename(inv){
   const kind = inv.type==='quotation' ? 'Quote' : 'Invoice';
   return `${kind}-${(inv.invoiceNumber||'').replace(/\s/g,'')}.pdf`;
 }
+
+// Open the invoice/quotation PDF straight in the browser's own PDF viewer. The web app
+// deliberately has NO custom in-app viewer: on every browser we just show the real PDF
+// in a new browser tab, where the browser's native Share/Save/Print live. This avoids
+// faking Android's native viewer (which caused a broken iframe + a bottom menu + a
+// double PDF-open on browsers that can't file-share). MUST be called synchronously from
+// a user gesture (click/tap) so the new tab isn't pop-up-blocked.
+// Returns 'opened' (new tab) or 'downloaded' (tab blocked → file saved instead).
+export function openInvoicePdf(inv){
+  const url = URL.createObjectURL(pdfBlob(inv));
+  // Open the PDF exactly ONCE in the browser. If the browser blocks the new tab
+  // (pop-up blocker / a locked-down standalone PWA), fall back to a download so the
+  // user still gets the file — never open it twice.
+  let how = 'opened';
+  const win = window.open(url, '_blank', 'noopener');
+  if(!win){
+    const a = document.createElement('a');
+    a.href = url; a.download = pdfFilename(inv);
+    document.body.appendChild(a); a.click(); a.remove();
+    how = 'downloaded';
+  }
+  // Keep the blob alive long enough for the tab to load it, then release the memory.
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+  return how;
+}

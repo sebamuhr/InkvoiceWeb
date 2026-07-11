@@ -215,18 +215,9 @@ select.ctrl{appearance:none;-webkit-appearance:none;background-image:none}
 .linkbtn{background:none;border:0;color:var(--link);font-weight:700;font-size:16px;cursor:pointer}
 .profile-logo .circle span{display:none}
 
-/* ---------- Clean PDF viewer (mirrors Android PdfViewerActivity) ---------- */
-.pdf-screen{position:fixed;inset:0;bottom:calc(var(--nav-h) + env(safe-area-inset-bottom));
-  display:flex;flex-direction:column;background:#3a3a40;z-index:5}
-.pdf-topbar{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;
-  gap:12px;padding:calc(env(safe-area-inset-top) + 8px) 12px 8px;background:var(--primary)}
-.pdf-topbar .iconbtn{color:#fff}
-.pdf-topbar .iconbtn:active{background:#ffffff22}
-.btn-share{display:inline-flex;align-items:center;gap:8px;background:#fff;color:var(--primary);
-  border:0;border-radius:999px;padding:9px 18px;font-size:15px;font-weight:700;cursor:pointer}
-.btn-share svg{width:18px;height:18px}
-.pdf-stage{flex:1;min-height:0;overflow:auto;-webkit-overflow-scrolling:touch}
-.pdf-doc{width:100%;height:100%;border:0;background:#3a3a40;display:block}
+/* The web app has NO custom in-app PDF viewer — PDFs open in the browser's own viewer
+   (see js/pdf.js openInvoicePdf). The old .pdf-screen/.pdf-topbar/.btn-share styles were
+   removed along with js/views/view.js. */
 
 /* ---------- back-to-home chevron (top-left, for iPhone) ---------- */
 /* Floats on top of everything, always in the corner, semi-transparent so it never

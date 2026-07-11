@@ -1,5 +1,6 @@
 import { getProfile, getClients, findClientByName, saveClient, saveInvoice,
          getInvoice, peekNextNumber, consumeNumber, uid, PDF_STYLES } from '../store.js';
+import { openInvoicePdf } from '../pdf.js';
 import { compute, money2, currencySymbol, toInputDate, fromInputDate, todayMs, plusDaysMs, esc, toast, isEmail } from '../util.js';
 import { Icon } from '../icons.js';
 import { mfield } from '../ui.js';
@@ -307,5 +308,10 @@ function generate(ctx){
   };
   if(!draft.isEdit) consumeNumber(draft.type, draft.invoiceNumber);
   saveInvoice(inv);
-  ctx.navigate('/view/'+inv.id);
+  // Web version: no custom in-app viewer. Open the real PDF straight in the browser
+  // (its native viewer has Share/Save/Print), then send the app to the matching list so
+  // the just-saved document is at the top when the user switches back.
+  const how = openInvoicePdf(inv);
+  if(how==='downloaded') toast('PDF saved — open it to share');
+  ctx.navigate(inv.type==='quotation' ? '/quotations' : '/invoices');
 }

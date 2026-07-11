@@ -1,4 +1,5 @@
 import { getInvoices, saveInvoice, deleteInvoice, getProfile } from '../store.js';
+import { openInvoicePdf } from '../pdf.js';
 import { money, money2, fmtISO, esc, toast, dialog } from '../util.js';
 import { Icon } from '../icons.js';
 import { mountAdSlot } from '../ads.js';
@@ -10,7 +11,12 @@ export function html(ctx){
   const p = getProfile();
   let docs = getInvoices()
     .filter(i => (i.type||'invoice')===type)
-    .sort((a,b)=> (b.creationDateMillis||0)-(a.creationDateMillis||0));
+    // Newest at TOP, ordered by the numeric part of the document number descending
+    // (N001, N002… / Q001, Q002…). Matches the Android app, which sorts on the number
+    // — NOT on the creation date (that field is day-granular, so same-day documents
+    // would tie and fall back to insertion order = oldest-first, the "wrong way around"
+    // the user reported). creationDateMillis is only a tiebreaker for equal numbers.
+    .sort((a,b)=> (docNum(b)-docNum(a)) || ((b.creationDateMillis||0)-(a.creationDateMillis||0)));
   if(filterStatus!=='All') docs = docs.filter(i => i.status===filterStatus);
 
   const total = docs.reduce((a,i)=> a+(Number(i.grandTotal)||0), 0);
@@ -44,6 +50,13 @@ export function html(ctx){
 
     ${cards}
   </div>`;
+}
+
+// Extract the integer from a document number like "N001"/"Q061"/"N°7" → 1/61/7.
+// Mirrors Android's extractNumber(); used to order the list newest-first by number.
+function docNum(inv){
+  const m = String(inv && inv.invoiceNumber || '').match(/(\d+)/);
+  return m ? parseInt(m[1], 10) : 0;
 }
 
 const ADS_EVERY = 5;
@@ -86,14 +99,15 @@ export function mount(ctx){
   const f = document.getElementById('filter');
   if(f) f.addEventListener('change', e => { filterStatus = e.target.value; ctx.navigate(ctx.path); });
 
-  // Tapping a card: invoices open the PDF viewer directly (Android has no edit for
-  // invoices). Quotations open a "Select Action" dialog — View / Share or Edit —
-  // matching the Android QuotationListScreen action dialog.
+  // Tapping a card: invoices open the PDF straight in the browser (Android has no edit
+  // for invoices). Quotations open a "Select Action" dialog — View / Share or Edit —
+  // matching the Android QuotationListScreen action dialog. There is no custom in-app
+  // viewer; "view" just opens the real PDF in the browser (native Share/Save lives there).
   document.querySelectorAll('[data-open]').forEach(el => el.addEventListener('click', async () => {
     const id = el.dataset.open;
     const inv = getInvoices().find(i => i.id === id);
     if(!inv) return;
-    if((inv.type||'invoice') !== 'quotation'){ ctx.navigate('/view/'+id); return; }
+    if((inv.type||'invoice') !== 'quotation'){ openInvoicePdf(inv); return; }
     const choice = await dialog({
       title:'Select Action',
       message:'What do you want to do with this quotation?',
@@ -102,7 +116,7 @@ export function mount(ctx){
         { label:'View / Share', value:'view' },
       ],
     });
-    if(choice==='view') ctx.navigate('/view/'+id);
+    if(choice==='view') openInvoicePdf(inv);
     else if(choice==='edit') ctx.navigate('/create?edit='+id);
   }));
 
