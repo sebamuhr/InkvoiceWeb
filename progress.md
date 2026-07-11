@@ -9,15 +9,33 @@
 
 ## 🔴 ACTIVE ISSUE — PWA home-screen icon on Android (READ THIS FIRST)
 
-**As of 2026-07-10, v50 is BUILT and awaiting upload**
-(`_upload/inkvoice-app-COMPLETE-v50.zip`, INCLUDES `.htaccess`). v50 = v49 + three
-follow-up fixes (changelog 2026-07-10 v50): **edit-a-quotation-→-invoice now creates a
-NEW invoice and keeps the quote** (this was the cause of "2 invoices N1" — numbering is
-otherwise correct), and the **Share fallback opens the actual PDF/PNG instead of a blank
-tab** (about:blank) when the browser lacks Web-Share files (e.g. Firefox Android). v49
-delivered six UI parity fixes (quotation action dialog, item-description requirement,
-History-API system-back + discard dialog, centered biz card, hardened share). All
-Playwright-verified; sync regressions green. **Below is older context.**
+**As of 2026-07-11, v51 is BUILT and awaiting upload**
+(`_upload/inkvoice-app-COMPLETE-v51.zip`, INCLUDES `.htaccess`). ⭐⭐ **v51 = the FINAL,
+bulletproof icon fix.** Root cause of the endless "lost the icon again": I kept RENAMING
+icon files every release (icon-…-v2…v6) and telling the user to re-add the home-screen
+icon each deploy — every re-add re-fetched and could hit a stale cache; and the fix
+depended on a HIDDEN `.htaccess` that may never have extracted on the server.
+v51 fixes it permanently (see "ICON POLICY" below). v50 (2026-07-10) delivered the
+edit-quote→invoice fix (the "2 invoices N1" cause) + share-opens-file-not-about:blank.
+**Below is older context.**
+
+### 🔒 ICON POLICY — do NOT break this again (2026-07-11)
+- **Canonical, STABLE filenames, never renamed again:** `icons/icon-192.png`,
+  `icons/icon-512.png`, `icons/maskable-512.png`, `icons/apple-touch-icon.png`,
+  `favicon.ico`. These hold the FINAL approved artwork (teal disc + black edge = the
+  native Android look). The old `…-v2..v6` files are kept on the server so existing
+  installs don't 404, but are dead — do not reference them.
+- **Cache-busting is done with a QUERY STRING, not renames:** manifest.json + index.html
+  reference `icons/icon-512.png?v=51` etc. This busts caches WITHOUT depending on the
+  hidden `.htaccess`, and works on every browser. The `?v=NN` is an **ICON revision that
+  is INDEPENDENT of APP_VERSION** — leave it FIXED across normal releases so the installed
+  icon PERSISTS untouched. **Only bump `?v=` (in manifest.json AND index.html AND, if you
+  changed the bytes, the file itself) when the icon ARTWORK actually changes.** Never
+  rename the physical files.
+- **Consequence:** because the icon URLs no longer change every release, the installed
+  home-screen icon survives app updates on its own. The user should NOT be told to
+  reinstall/re-add on every deploy anymore — only ONCE, right after v51, to escape the
+  currently-broken state.
 
 **(2026-07-09) v48** = v47 + **unpair now propagates**: if either side unpairs/forgets while connected, it sends `{t:'unpair'}` over
 the live channel so the OTHER side also forgets (laptop → code screen, phone → HAS_PAIRED
@@ -184,8 +202,11 @@ local icon cache is poisoned** — v37 busts it with NEW icon URLs. Awaiting con
   of the bundle** (root-level, next to index.html).
 
 ### Suggested next steps for a fresh session
-1. **v50 uploaded?** User extracts `inkvoice-app-COMPLETE-v50.zip` OVER `public_html/app/`
-   (do NOT empty the folder first!) — **including the `.htaccess`**. Confirm on-screen "v50".
+1. **v51 uploaded?** User extracts `inkvoice-app-COMPLETE-v51.zip` OVER `public_html/app/`
+   (do NOT empty the folder first). `.htaccess` is nice-to-have but the icon fix does NOT
+   depend on it. Confirm on-screen "v51". Then re-add the home-screen icon ONE last time —
+   after this, updates keep the icon automatically (see ICON POLICY). **Never rename icons
+   again; if the art changes, bump only the `?v=` query.**
 2. **Verify on the real phone:** editing a quotation and switching it to an invoice makes a
    NEW invoice (quote stays), invoice numbers stay correlative (no more duplicate N1);
    Share PDF/Card opens the share sheet on Chrome, or opens the PDF/PNG (not about:blank) on
@@ -415,6 +436,24 @@ chevron clears content.
 ---
 
 ## 9. Changelog (newest first)
+
+### 2026-07-11 — v51: PERMANENT icon fix — stable filenames + query cache-bust (stop renaming!)
+The icon broke on updates because the "cure" (renaming icon files every release + telling
+the user to re-add) was itself the disease: each re-add re-fetched and could hit a stale
+cache, and the header fix lived in a HIDDEN `.htaccess` that may never have deployed.
+- **Consolidated to canonical, permanent filenames** (`icons/icon-192.png`,
+  `icon-512.png`, `maskable-512.png`) holding the final approved artwork (copied from the
+  good v5/v6 bytes). Old `-v2..v6` files kept on the server for existing installs; no longer
+  referenced.
+- **Cache-bust via a fixed `?v=51` query** in manifest.json + index.html (icons + favicon +
+  apple-touch), NOT via renames and NOT dependent on `.htaccess`. The query is an ICON
+  revision decoupled from APP_VERSION — it stays fixed across releases, so the installed
+  icon URL never changes and the home-screen icon persists through updates. Bump `?v=` only
+  when the artwork changes. sw.js SHELL updated to canonical names.
+- **Verified:** manifest valid, `id` stable (`./`); every manifest icon + HTML-linked icon
+  (with `?v=51`) returns 200 `image/png`; app boots 0 pageerrors, 0 4xx. **SW → v51 /
+  APP_VERSION v51.** Bundle: `_upload/inkvoice-app-COMPLETE-v51.zip` (+.htaccess).
+- **Deploy note:** re-add the icon ONCE after v51; future updates keep it automatically.
 
 ### 2026-07-10 — v50: edit-quote→invoice keeps the quote (fixes "2 invoices N1") + share opens file not about:blank
 - **Edit a quotation and switch it to an invoice → NEW invoice, quote preserved**
