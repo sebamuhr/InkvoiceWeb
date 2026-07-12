@@ -14,12 +14,15 @@
   <FilesMatch "manifest\.(json|webmanifest)$">
     Header set Cache-Control "public, max-age=0, must-revalidate"
   </FilesMatch>
-  # Icons + favicon: always revalidate too. The server's default was caching these
-  # for days, so after a redeploy the browser kept serving a stale/blank icon under
-  # the same filename and the home-screen icon "broke again". Revalidating (cheap
-  # 304 when unchanged) means a corrected icon is picked up immediately — no need to
-  # rename the icon files on every release.
+  # Icons + favicon: cache HARD and immutably. The icon URL already carries a version
+  # query (?v=NN) that changes ONLY when the artwork changes, so a given URL always maps
+  # to the same bytes — it is safe (and correct) to let the browser/OS keep it forever.
+  # The previous "max-age=0, must-revalidate" was actively harmful: must-revalidate
+  # FORBIDS using the cached icon without a successful server round-trip, so any offline
+  # moment / network blip / server hiccup while the OS re-rendered the home-screen icon
+  # after an update dropped it to the generic Android icon. Immutable caching means once
+  # the device has the icon it never needs the network again → the icon survives updates.
   <FilesMatch "\.(png|ico)$">
-    Header set Cache-Control "public, max-age=0, must-revalidate"
+    Header set Cache-Control "public, max-age=31536000, immutable"
   </FilesMatch>
 </IfModule>

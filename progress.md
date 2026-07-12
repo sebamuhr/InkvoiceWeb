@@ -9,11 +9,17 @@
 
 ## 🔴 ACTIVE ISSUE — PWA home-screen icon on Android (READ THIS FIRST)
 
-**Latest build: v53** (`_upload/inkvoice-app-COMPLETE-v53.zip`, INCLUDES `.htaccess`) —
-removed the custom in-app PDF viewer; PDFs now open directly in the browser (v53), on top of
-the v52 list-ordering fix and the v51 icon work. Icon files + `?v=51` query UNCHANGED so the
-home-screen icon carries over. ⭐⭐ **v51 introduced the FINAL, bulletproof icon fix** (still
-in force). Root cause of the endless "lost the icon again": I kept RENAMING
+**Latest build: v55** (`_upload/inkvoice-app-COMPLETE-v55.zip`, INCLUDES `.htaccess`) —
+numbering + tax-picker + date-field fixes (see v55 changelog). Carries the v54 icon fix
+(icons + `?v=54` unchanged in v55). See prior note below for the v54 icon details.
+
+**Prior build: v54** (`_upload/inkvoice-app-COMPLETE-v54.zip`, INCLUDES `.htaccess`) —
+REAL icon root-cause fix (see v54 changelog + memory `pwa-icon-root-cause`). The v51 "stable
+filename" theory was WRONG (manifest/icon URLs were byte-identical v51→v53 yet the icon still
+broke). Two actual defects fixed: (1) maskable slot pointed at a full-bleed non-safe image →
+now `maskable-512.png` only; (2) `.htaccess` forced `must-revalidate` on icons → now
+`immutable` long-cache. Icon URLs bumped `?v=51`→`?v=54` to force a clean re-mint. Also
+carries v53 (PDF opens in browser) and v52 (list order). Root cause of the endless "lost the icon again": I kept RENAMING
 icon files every release (icon-…-v2…v6) and telling the user to re-add the home-screen
 icon each deploy — every re-add re-fetched and could hit a stale cache; and the fix
 depended on a HIDDEN `.htaccess` that may never have extracted on the server.
@@ -438,6 +444,72 @@ chevron clears content.
 ---
 
 ## 9. Changelog (newest first)
+
+### 2026-07-12 — v55: numbering (edit=new doc), tax-number picker, date-field overlap
+Three fixes, all checked against the Android reference (`CreateInvoiceScreen.kt`).
+- **Numbering — editing now creates a NEW document.** Android has NO in-place edit: every
+  PDF generation does `invoice.copy(id = UUID.randomUUID())` with the next number
+  (`CreateInvoiceScreen.kt:1814`, numbers from `getLastNumber(type)+1`). The web used to
+  OVERWRITE when `isEdit`, so editing Q1 kept Q1. Now `fromExisting()` (edit AND duplicate)
+  always assigns a fresh `uid()` + `peekNextNumber(type)`, and `generate()` ALWAYS
+  `consumeNumber()`. Editing Q1 → generates Q2, Q1 stays, counter increments. Removed the
+  v50 `isEdit/origId/origType/convId` in-place-edit + convert bookkeeping (`setType` just
+  re-peeks the next number of the chosen type).
+- **No repeats — collision-proof numbering.** `store.peekNextNumber` now floors on
+  `maxUsedNumber(type)` (highest number among saved docs of that type) as well as the
+  profile counter, so a new number can never collide even if the counter drifted from older
+  buggy builds. Combined with v52 (list sorts by number desc) this gives correlative numbers
+  with the smallest at the BOTTOM for quotations too.
+- **Tax-number picker on Create.** Android shows a dropdown when the profile has >1 tax
+  number and puts the ONE selected number on the doc (`selectedTaxNumber`,
+  `CreateInvoiceScreen.kt:802,1733`). Web: `create.js` renders `#tax-select` (label — number)
+  only when `profile.taxNumbers` has >1 entry; `generate()` writes just the chosen entry to
+  `inv.taxNumbers` (`selectedTaxNumbers()`), so the PDF prints only that one. 0/1 tax numbers
+  → no picker, same as before.
+- **Date fields overlapping on small screens.** Native `input[type=date]` carries an
+  intrinsic min width and paints its value wider than the box on iOS/Android unless
+  `appearance` is reset — so the two side-by-side date fields overlapped. CSS now sets
+  `-webkit-appearance:none; appearance:none; min-width:0; width:100%; overflow:hidden` on
+  date inputs → they shrink to the column and truncate instead of spilling over (user
+  accepted truncation over overlap).
+- **Robustness:** `fromExisting()` now defaults the string fields (clientEmail, address, …)
+  so editing an older/synced doc that lacks them can't crash `validate()`/`generate()` on
+  `.trim()`.
+- **Verified (Playwright):** edit-Q1→Q2 (Q1 stays, no repeat); two fresh quotations → Q001,
+  Q002; tax picker appears only when >1 and the selected number lands on the doc; date fields
+  don't overlap at 320px with appearance reset. UI regression + PDF-flow + ordering suites all
+  green; built bundle boots 0 pageerrors. **SW → v55 / APP_VERSION v55.** Bundle:
+  `_upload/inkvoice-app-COMPLETE-v55.zip` (+.htaccess). Icons + `?v=54` UNCHANGED.
+
+### 2026-07-12 — v54: REAL PWA-icon root cause found (maskable + immutable caching)
+The home-screen icon reverted to the generic Android icon after almost every deploy for many
+releases. Every prior "fix" (rename icons v2..v6; v51 "stable filenames + ?v= query") failed
+because it chased the wrong cause. **Proof the old theory was wrong:** manifest.json,
+index.html icon refs, and the icon files were BYTE-IDENTICAL v51→v53
+(`git diff 97233a1 HEAD -- manifest.json index.html .htaccess` = empty) yet the icon still
+broke on v53. So "keep the URL stable and it persists" was never it.
+- **Defect 1 — broken maskable icon.** manifest declared `icon-192.png` (a full-bleed image,
+  NO safe-zone padding) as `purpose:"maskable"`. Android's adaptive-icon mask crops maskable
+  icons hard, so a non-safe image renders wrong / drops to the generic icon. **Fix:** the
+  maskable slot now uses ONLY `maskable-512.png` (proper maskable art); `icon-192`/`icon-512`
+  are `purpose:"any"`. Manifest icon list went 4→3 entries.
+- **Defect 2 — fragile icon caching.** `.htaccess` forced `Cache-Control: max-age=0,
+  must-revalidate` on all png/ico. `must-revalidate` FORBIDS using the cached icon without a
+  successful server round-trip → any offline moment / network blip / server hiccup while the
+  OS re-rendered the icon after an update dropped it to generic. **Fix:** icons →
+  `max-age=31536000, immutable` (safe because `?v=NN` cache-busts on real art changes). Once
+  the device has the icon it never needs the network again.
+- **Recovery:** bumped the icon query `?v=51`→`?v=54` (manifest + index) to force a clean
+  re-mint so the corrected/immutable icon is fetched fresh. After deploying v54 the user
+  should remove + re-add the home-screen shortcut ONCE; subsequent updates must not touch it.
+- **Policy (do NOT relitigate):** canonical stable filenames; bump `?v=` ONLY for new art or
+  to recover a broken install (decoupled from APP_VERSION); icons `immutable`, manifest
+  `must-revalidate`; maskable → maskable-512 only; SW keeps BYPASSING /icons/+manifest (never
+  mediate icons via the worker — that caused empty/slow → generic before). Captured in memory
+  `pwa-icon-root-cause`.
+- **Verified:** manifest valid (3 icons), all icon URLs (with `?v=54`) return 200 image/png;
+  built bundle boots 0 pageerrors, 0 4xx. **SW → v54 / APP_VERSION v54.** Bundle:
+  `_upload/inkvoice-app-COMPLETE-v54.zip` (+.htaccess).
 
 ### 2026-07-11 — v53: no custom in-app PDF viewer — open PDFs straight in the browser
 The old `/view` screen faked Android's `PdfViewerActivity` with an `<iframe>`, a custom Share

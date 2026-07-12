@@ -111,14 +111,23 @@ export function deleteInvoice(id){
 
 // ----- Sequential numbering (per type, like the Android counters) -----
 const pad = (n) => String(n).padStart(3,'0');
+// Highest number already used by a saved document of this type. Used as a floor so a
+// new number can NEVER collide with an existing one, even if the profile counter drifted
+// (e.g. from older builds that overwrote in place without consuming a number).
+function maxUsedNumber(type){
+  return getInvoices()
+    .filter(i => (i.type||'invoice')===type)
+    .reduce((m,i)=>{ const n = parseInt(String(i.invoiceNumber||'').replace(/\D/g,''),10); return (!isNaN(n)&&n>m)?n:m; }, 0);
+}
 export function peekNextNumber(type='invoice'){
   const p = getProfile();
+  const used = maxUsedNumber(type);
   if(type==='quotation'){
-    const next = Math.max(1, (p.lastQuotationNumberUsed||0)+1);
+    const next = Math.max(1, (p.lastQuotationNumberUsed||0)+1, used+1);
     return 'Q'+pad(next);
   }
   const base = p.startFromInvoiceNumber||1;
-  const next = Math.max(base, (p.lastInvoiceNumberUsed||0)+1);
+  const next = Math.max(base, (p.lastInvoiceNumberUsed||0)+1, used+1);
   return 'N'+pad(next);
 }
 // Record that a number was consumed (call on NEW documents only).

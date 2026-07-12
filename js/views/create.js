@@ -20,21 +20,30 @@ function blankDraft(type='invoice'){
     status:'Pending', notes:p.notes||'', footerNotes:p.footerNotes||'',
     pdfStyle:p.preferredPdfStyle||'Professional',
     b2g:false, buyerReference:'', departmentArea:'',
+    // Which of the profile's tax numbers prints on this document (index into
+    // profile.taxNumbers). Only offered as a choice when the profile has more than one.
+    selectedTaxIndex:0,
   };
 }
 function fromExisting(src, dup){
   const d = JSON.parse(JSON.stringify(src));
   d.items = (d.items||[]).map(i => ({ ...i, id:uid() }));
   d.b2g = !!d.buyerReference;
-  if(dup){ d.id=uid(); d.isEdit=false; d.invoiceNumber=peekNextNumber(d.type);
-    d.creationDateMillis=todayMs(); d.dueDateMillis=null; d.status='Pending'; }
-  else {
-    d.isEdit=true;
-    // Remember the original identity so that if the user switches the type (e.g. turns
-    // this quotation into an invoice) we CREATE a new document and leave the original
-    // untouched — instead of overwriting it. Switching back restores editing it.
-    d.origType=src.type; d.origId=src.id; d.origNumber=src.invoiceNumber;
-  }
+  // Matches Android: there is NO in-place edit. Generating a PDF ALWAYS mints a new
+  // document with the next number of its type; editing/duplicating only pre-fills the
+  // form, and the original document is never touched. So BOTH edit and duplicate get a
+  // fresh id + the next number. (Editing Q1 and regenerating therefore yields Q2, and
+  // numbers can never repeat — see store.peekNextNumber, which floors on the max used.)
+  d.id = uid();
+  d.isEdit = false;
+  d.invoiceNumber = peekNextNumber(d.type);
+  d.status = 'Pending';
+  d.selectedTaxIndex = 0;
+  if(dup){ d.creationDateMillis = todayMs(); d.dueDateMillis = null; }
+  // Ensure the string fields the form/validation touch always exist, even if the source
+  // document (older data / a synced peer) didn't have them — otherwise `.trim()` throws.
+  ['clientName','clientEmail','clientAddress','clientVatId','clientPhone',
+   'buyerReference','departmentArea','notes','footerNotes'].forEach(k => { if(d[k]==null) d[k]=''; });
   return d;
 }
 
@@ -50,8 +59,19 @@ export function html(ctx){
   const isQ = draft.type==='quotation';
   const cur = currencySymbol(p.currency).trim();
 
+  const taxOptions = Array.isArray(p.taxNumbers) ? p.taxNumbers.filter(t => (t.number||'').trim()) : [];
+  const taxPicker = taxOptions.length > 1 ? `
+    <div class="mfield" style="margin-top:6px">
+      <select id="tax-select" class="ctrl">
+        ${taxOptions.map((t,i)=>`<option value="${i}" ${draft.selectedTaxIndex===i?'selected':''}>${esc((t.label||'Tax Number')+' — '+t.number)}</option>`).join('')}
+      </select>
+      <label for="tax-select">Tax Number for this document</label>
+      <span class="icon-r">${Icon.chev}</span>
+    </div>` : '';
+
   return `<div class="screen">
     <div class="summary" id="summary">${summaryInner()}</div>
+    ${taxPicker}
 
     <div class="radios">
       <div class="radio ${!isQ?'on':''}" id="r-inv"><span class="dot"></span>Invoice</div>
@@ -152,19 +172,9 @@ export function mount(ctx){
   const setType = (type) => {
     if(draft.type===type) return;
     draft.type = type;
-    if(draft.origId != null){
-      // Editing an existing document. Switching to the OTHER type = convert → a NEW
-      // document (new id, next number of that type); the original stays. Switching back
-      // to the original type restores editing it in place.
-      if(type === draft.origType){
-        draft.id = draft.origId; draft.invoiceNumber = draft.origNumber; draft.isEdit = true;
-      }else{
-        draft.id = draft.convId || (draft.convId = uid());
-        draft.invoiceNumber = peekNextNumber(type); draft.isEdit = false;
-      }
-    }else if(!draft.isEdit){
-      draft.invoiceNumber = peekNextNumber(type);
-    }
+    // A document always carries the NEXT number of its current type; switching type just
+    // re-peeks that type's next number. (No in-place edit anymore — see fromExisting.)
+    draft.invoiceNumber = peekNextNumber(type);
     $('r-inv').classList.toggle('on', type==='invoice');
     $('r-quo').classList.toggle('on', type==='quotation');
     document.querySelectorAll('.section-h')[1].textContent = `${type==='quotation'?'Quotation':'Invoice'} Items`;
@@ -172,6 +182,9 @@ export function mount(ctx){
   };
   $('r-inv').onclick = () => setType('invoice');
   $('r-quo').onclick = () => setType('quotation');
+
+  const taxSel = $('tax-select');
+  if(taxSel) taxSel.addEventListener('change', e => { draft.selectedTaxIndex = parseInt(e.target.value,10)||0; });
 
   $('c-name').addEventListener('input', e => {
     draft.clientName = e.target.value;
@@ -287,6 +300,15 @@ export function mount(ctx){
   }
 }
 
+// The single tax number chosen for this document (Android puts one selected tax number on
+// the doc, not all of them). 0 tax numbers → none; 1 → that one; >1 → the picked index.
+function selectedTaxNumbers(p){
+  const opts = Array.isArray(p.taxNumbers) ? p.taxNumbers.filter(t => (t.number||'').trim()) : [];
+  if(!opts.length) return [];
+  const i = Math.min(Math.max(0, draft.selectedTaxIndex||0), opts.length-1);
+  return [opts[i]];
+}
+
 function generate(ctx){
   const p = getProfile();
   let client = findClientByName(draft.clientName);
@@ -298,7 +320,7 @@ function generate(ctx){
     clientVatId:draft.clientVatId, clientPhone:draft.clientPhone,
     businessName:p.businessName, ownerName:p.ownerName, businessAddress:p.address, businessEmail:p.email,
     businessWebsite:p.website, businessPhone:p.phone, bankingInformation:p.bankingInformation,
-    footerNotes:draft.footerNotes||p.footerNotes, logoUri:p.logoUri, currency:p.currency, taxNumbers:p.taxNumbers,
+    footerNotes:draft.footerNotes||p.footerNotes, logoUri:p.logoUri, currency:p.currency, taxNumbers:selectedTaxNumbers(p),
     creationDateMillis:draft.creationDateMillis, dueDateMillis:draft.dueDateMillis,
     items:draft.items.map(({id,description,quantity,unitPrice})=>({id,description,quantity:Number(quantity)||0,unitPrice:Number(unitPrice)||0})),
     subtotal:t.subtotal, discountPercent:Number(draft.discountPercent)||0, taxRatePercentage:Number(draft.taxRatePercentage)||0,
@@ -306,7 +328,8 @@ function generate(ctx){
     status:draft.status, notes:draft.notes, pdfStyle:draft.pdfStyle,
     buyerReference:draft.b2g?draft.buyerReference:'', departmentArea:draft.b2g?draft.departmentArea:'',
   };
-  if(!draft.isEdit) consumeNumber(draft.type, draft.invoiceNumber);
+  // Always consume: every generated document is a NEW one and takes the next number.
+  consumeNumber(draft.type, draft.invoiceNumber);
   saveInvoice(inv);
   // Web version: no custom in-app viewer. Open the real PDF straight in the browser
   // (its native viewer has Share/Save/Print), then send the app to the matching list so
