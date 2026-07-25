@@ -6,6 +6,22 @@ web. Create invoices, quotations and business cards, generate real PDFs, and sha
 Built as an installable **PWA** so iPhone (and Android/desktop) users can "Add to Home
 Screen" and use it like a native app.
 
+## 📁 Repository layout (read this first)
+
+This repo holds **two separate deployables** — that's why there are two `index.html` files.
+
+| Path | What it is | Deploys to |
+|------|-----------|------------|
+| **`index.html`** (repo root) + `js/`, `css/`, `icons/`, `vendor/`, `manifest.json`, `sw.js`, `.htaccess`, `favicon.ico`, `installed.txt`, `signal.php` | **The PWA app** (`<title>Inkvoice</title>`). This is the thing users install. | `public_html/app/` |
+| **`site/index.html`** + `site/css/`, `site/assets/`, `site/icons/` | **The marketing / welcome page** (the `inkvoiceapp.com` landing page). | `public_html/` (root) |
+| `README.md`, `CHECKLIST.md`, `progress.md` | Docs — status, changelog, handoff notes. | — (not deployed) |
+| `_upload/` | **Build output only** (gitignored). Ready-to-upload zips + their extracted folders. Rebuilt from source; safe to delete/regenerate. | — |
+| `CNAME` | Custom-domain marker for the git host. | — |
+
+**So:** editing the **app** → edit the root files. Editing the **website** → edit `site/`.
+The `_upload/*.zip` files are what you upload to Hostinger; they're generated from the
+source above, never edited by hand. See `CHECKLIST.md` for the deploy steps.
+
 ## Refreshingly few ads
 Most free invoice apps bury you in ads. Inkvoice doesn't. You'll see **no ads at all until
 you've created your first 5 invoices**, then just one — so you can open the app in front of
