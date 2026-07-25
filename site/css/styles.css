@@ -144,6 +144,28 @@ section{ padding:88px 22px; }
 .card h3{ font-size:20px; margin-bottom:8px; }
 .card p{ color:var(--body); font-size:15.5px; }
 
+/* ---------- Features carousel (auto-scroll) ---------- */
+.carousel{
+  max-width:var(--maxw); margin:32px auto 0; padding:18px 0; overflow:hidden;
+  /* fade the left/right edges so cards slide in and out softly */
+  -webkit-mask-image:linear-gradient(90deg,transparent,#000 7%,#000 93%,transparent);
+          mask-image:linear-gradient(90deg,transparent,#000 7%,#000 93%,transparent);
+}
+.carousel-track{
+  display:flex; width:max-content;
+  animation:feature-scroll 40s linear infinite;
+}
+/* seamless loop: each card is 300px + 20px right margin; the set is duplicated,
+   so translating the track by exactly half its width lands card #8 where #1 was. */
+.carousel .card{ flex:0 0 300px; margin-right:20px; box-sizing:border-box; }
+@keyframes feature-scroll{
+  from{ transform:translateX(0); }
+  to{ transform:translateX(-50%); }
+}
+/* pause when the visitor hovers or tabs into a card */
+.carousel:hover .carousel-track,
+.carousel:focus-within .carousel-track{ animation-play-state:paused; }
+
 /* ---------- Get it ---------- */
 .get-grid{
   max-width:960px; margin:48px auto 0;
@@ -216,4 +238,12 @@ section{ padding:88px 22px; }
   section{ padding:60px 18px; }
   .grid{ grid-template-columns:1fr; }
   .hero-art{ min-height:380px; }
+  .carousel .card{ flex-basis:80vw; }   /* one card at a time on phones */
+}
+
+/* Accessibility: no motion for visitors who ask for it — the row becomes a
+   quiet, manually-scrollable strip instead of auto-playing. */
+@media (prefers-reduced-motion:reduce){
+  .carousel{ overflow-x:auto; -webkit-overflow-scrolling:touch; }
+  .carousel-track{ animation:none; }
 }
