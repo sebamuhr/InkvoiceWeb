@@ -121,83 +121,54 @@
       <h2 class="section-title">Everything you need to get paid</h2>
       <p class="section-sub">Built for freelancers, tradespeople and small businesses who bill on the go.</p>
 
-      <!-- Auto-scrolling feature carousel. The card set is duplicated once (aria-hidden)
-           so the track can loop seamlessly; see .carousel-track in styles.css. -->
-      <div class="carousel" role="region" aria-label="Feature highlights">
-        <div class="carousel-track">
-          <article class="card">
-            <div class="ficon">📄</div>
-            <h3>Invoices &amp; quotes</h3>
-            <p>Create invoices and quotations with automatic, sequential numbering and clean, professional PDF layouts.</p>
-          </article>
-          <article class="card">
-            <div class="ficon">🪪</div>
-            <h3>Business cards</h3>
-            <p>Design and share a matching digital business card from the same brand details.</p>
-          </article>
-          <article class="card">
-            <div class="ficon">🔌</div>
-            <h3>Fully offline</h3>
-            <p>Everything runs on your device. Bill a client in a basement with no signal — it just works.</p>
-          </article>
-          <article class="card">
-            <div class="ficon">🔒</div>
-            <h3>Private by design</h3>
-            <p>No account, no cloud, no tracking of your clients. Your invoices and contacts stay with you.</p>
-          </article>
-          <article class="card">
-            <div class="ficon">🗣️</div>
-            <h3>Bill in any language</h3>
-            <p>Set the invoice language independently from the app — English, German, Spanish or French — so every client is billed in the language they read. Plus multiple currencies, tax numbers and discounts.</p>
-          </article>
-          <article class="card">
-            <div class="ficon">🇪🇺</div>
-            <h3>B2G &amp; e-invoicing</h3>
-            <p>Government-ready invoices with buyer reference and VAT fields, in EN&nbsp;16931 e-invoicing formats like XRechnung, Factur-X and ZUGFeRD. Available in the Android app.</p>
-          </article>
-          <article class="card">
-            <div class="ficon">🎨</div>
-            <h3>Branded PDFs</h3>
-            <p>Add your logo and pick a style. Send crisp, presentable PDFs your clients will trust.</p>
-          </article>
-
-          <!-- duplicate set for seamless looping -->
-          <article class="card" aria-hidden="true">
-            <div class="ficon">📄</div>
-            <h3>Invoices &amp; quotes</h3>
-            <p>Create invoices and quotations with automatic, sequential numbering and clean, professional PDF layouts.</p>
-          </article>
-          <article class="card" aria-hidden="true">
-            <div class="ficon">🪪</div>
-            <h3>Business cards</h3>
-            <p>Design and share a matching digital business card from the same brand details.</p>
-          </article>
-          <article class="card" aria-hidden="true">
-            <div class="ficon">🔌</div>
-            <h3>Fully offline</h3>
-            <p>Everything runs on your device. Bill a client in a basement with no signal — it just works.</p>
-          </article>
-          <article class="card" aria-hidden="true">
-            <div class="ficon">🔒</div>
-            <h3>Private by design</h3>
-            <p>No account, no cloud, no tracking of your clients. Your invoices and contacts stay with you.</p>
-          </article>
-          <article class="card" aria-hidden="true">
-            <div class="ficon">🗣️</div>
-            <h3>Bill in any language</h3>
-            <p>Set the invoice language independently from the app — English, German, Spanish or French — so every client is billed in the language they read. Plus multiple currencies, tax numbers and discounts.</p>
-          </article>
-          <article class="card" aria-hidden="true">
-            <div class="ficon">🇪🇺</div>
-            <h3>B2G &amp; e-invoicing</h3>
-            <p>Government-ready invoices with buyer reference and VAT fields, in EN&nbsp;16931 e-invoicing formats like XRechnung, Factur-X and ZUGFeRD. Available in the Android app.</p>
-          </article>
-          <article class="card" aria-hidden="true">
-            <div class="ficon">🎨</div>
-            <h3>Branded PDFs</h3>
-            <p>Add your logo and pick a style. Send crisp, presentable PDFs your clients will trust.</p>
-          </article>
+      <!-- Feature slideshow: each card rests, then steps to the next; loops seamlessly.
+           JS (bottom of this file) clones the set for the wrap and wires the arrows. -->
+      <div class="carousel" role="region" aria-roledescription="carousel" aria-label="Feature highlights">
+        <button type="button" class="carousel-arrow prev" aria-label="Previous feature">
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <div class="carousel-viewport">
+          <div class="carousel-track">
+            <article class="card">
+              <div class="ficon">📄</div>
+              <h3>Invoices &amp; quotes</h3>
+              <p>Create invoices and quotations with automatic, sequential numbering and clean, professional PDF layouts.</p>
+            </article>
+            <article class="card">
+              <div class="ficon">🪪</div>
+              <h3>Business cards</h3>
+              <p>Design and share a matching digital business card from the same brand details.</p>
+            </article>
+            <article class="card">
+              <div class="ficon">🔌</div>
+              <h3>Fully offline</h3>
+              <p>Everything runs on your device. Bill a client in a basement with no signal — it just works.</p>
+            </article>
+            <article class="card">
+              <div class="ficon">🔒</div>
+              <h3>Private by design</h3>
+              <p>No account, no cloud, no tracking of your clients. Your invoices and contacts stay with you.</p>
+            </article>
+            <article class="card">
+              <div class="ficon">🗣️</div>
+              <h3>Bill in any language</h3>
+              <p>Set the invoice language independently from the app — English, German, Spanish or French — so every client is billed in the language they read. Plus multiple currencies, tax numbers and discounts.</p>
+            </article>
+            <article class="card">
+              <div class="ficon">🇪🇺</div>
+              <h3>B2G &amp; e-invoicing</h3>
+              <p>Government-ready invoices with buyer reference and VAT fields, in EN&nbsp;16931 e-invoicing formats like XRechnung, Factur-X and ZUGFeRD. Available in the Android app.</p>
+            </article>
+            <article class="card">
+              <div class="ficon">🎨</div>
+              <h3>Branded PDFs</h3>
+              <p>Add your logo and pick a style. Send crisp, presentable PDFs your clients will trust.</p>
+            </article>
+          </div>
         </div>
+        <button type="button" class="carousel-arrow next" aria-label="Next feature">
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
       </div>
     </section>
 
@@ -357,6 +328,74 @@
         slides[idx].classList.add('active'); dots[idx].classList.add('on');
       }, 2800);
     }
+  })();
+  </script>
+
+  <script>
+  // Feature slideshow — steps one card at a time, rests, and loops seamlessly.
+  // A full clone of the card set is appended so the wrap from last→first is invisible.
+  (function(){
+    var root = document.querySelector('#features .carousel');
+    if(!root) return;
+    var track   = root.querySelector('.carousel-track');
+    var prevBtn = root.querySelector('.carousel-arrow.prev');
+    var nextBtn = root.querySelector('.carousel-arrow.next');
+    var reduce  = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    var N = track.children.length;
+    if(N < 2) return;
+
+    // Clone the whole set once → seamless wrap in both directions.
+    Array.prototype.slice.call(track.children).forEach(function(card){
+      var c = card.cloneNode(true);
+      c.setAttribute('aria-hidden', 'true');
+      track.appendChild(c);
+    });
+
+    var index = 0, busy = false, timer = null;
+    var DELAY = 3200; // ms a card rests before stepping
+
+    function step(){
+      var first = track.children[0];
+      var cs = getComputedStyle(track);
+      var gap = parseFloat(cs.columnGap || cs.gap || '0') || 0;
+      return first.getBoundingClientRect().width + gap;
+    }
+    function place(animate){
+      track.style.transition = animate ? '' : 'none';
+      track.style.transform = 'translateX(' + (-index * step()) + 'px)';
+      if(!animate){ void track.offsetWidth; track.style.transition = ''; } // commit, re-enable
+    }
+    function settle(){
+      busy = false;
+      if(index >= N){ index -= N; place(false); } // silent reset after the wrap
+    }
+    function next(){ if(busy) return; busy = true; index++; place(true); if(reduce) settle(); }
+    function prev(){
+      if(busy) return; busy = true;
+      if(index <= 0){ index = N; place(false); } // jump to clone-set, then slide back
+      index--; place(true); if(reduce) settle();
+    }
+
+    // With motion enabled the slide animates; settle after it finishes.
+    track.addEventListener('transitionend', function(e){
+      if(e.propertyName !== 'transform') return;
+      settle();
+    });
+
+    function start(){ if(reduce) return; stop(); timer = setInterval(next, DELAY); }
+    function stop(){ if(timer){ clearInterval(timer); timer = null; } }
+
+    nextBtn.addEventListener('click', function(){ next(); start(); });
+    prevBtn.addEventListener('click', function(){ prev(); start(); });
+    root.addEventListener('mouseenter', stop);
+    root.addEventListener('mouseleave', start);
+    root.addEventListener('focusin', stop);
+    root.addEventListener('focusout', start);
+    window.addEventListener('resize', function(){ place(false); });
+
+    place(false);
+    start();
   })();
   </script>
 </body>

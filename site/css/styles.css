@@ -144,27 +144,32 @@ section{ padding:88px 22px; }
 .card h3{ font-size:20px; margin-bottom:8px; }
 .card p{ color:var(--body); font-size:15.5px; }
 
-/* ---------- Features carousel (auto-scroll) ---------- */
+/* ---------- Features slideshow (stepped, looping, arrows) ---------- */
 .carousel{
-  max-width:var(--maxw); margin:32px auto 0; padding:18px 0; overflow:hidden;
-  /* fade the left/right edges so cards slide in and out softly */
-  -webkit-mask-image:linear-gradient(90deg,transparent,#000 7%,#000 93%,transparent);
-          mask-image:linear-gradient(90deg,transparent,#000 7%,#000 93%,transparent);
+  position:relative;
+  max-width:calc(var(--maxw) + 96px);   /* room for the arrows in the gutters */
+  margin:32px auto 0; padding:0 48px;
 }
+.carousel-viewport{ overflow:hidden; padding:18px 2px; }
 .carousel-track{
-  display:flex; width:max-content;
-  animation:feature-scroll 40s linear infinite;
+  display:flex; gap:20px;
+  transition:transform .55s cubic-bezier(.4,0,.2,1);
+  will-change:transform;
 }
-/* seamless loop: each card is 300px + 20px right margin; the set is duplicated,
-   so translating the track by exactly half its width lands card #8 where #1 was. */
-.carousel .card{ flex:0 0 300px; margin-right:20px; box-sizing:border-box; }
-@keyframes feature-scroll{
-  from{ transform:translateX(0); }
-  to{ transform:translateX(-50%); }
+.carousel .card{ flex:0 0 calc((100% - 40px) / 3); box-sizing:border-box; }  /* 3 across */
+
+/* prev / next arrows sit in the side gutters */
+.carousel-arrow{
+  position:absolute; top:50%; transform:translateY(-50%); z-index:2;
+  width:46px; height:46px; border-radius:50%;
+  border:1px solid var(--line); background:var(--card); color:var(--ink);
+  display:grid; place-items:center; cursor:pointer;
+  box-shadow:var(--shadow); transition:background .15s ease, transform .15s ease;
 }
-/* pause when the visitor hovers or tabs into a card */
-.carousel:hover .carousel-track,
-.carousel:focus-within .carousel-track{ animation-play-state:paused; }
+.carousel-arrow:hover{ background:var(--bg-alt); }
+.carousel-arrow:active{ transform:translateY(-50%) scale(.94); }
+.carousel-arrow.prev{ left:0; }
+.carousel-arrow.next{ right:0; }
 
 /* ---------- Get it ---------- */
 .get-grid{
@@ -233,17 +238,21 @@ section{ padding:88px 22px; }
   .trust,.cta-row{ justify-content:center; }
   .grid{ grid-template-columns:repeat(2,1fr); }
   .get-grid{ grid-template-columns:1fr; }
+  .carousel .card{ flex-basis:calc((100% - 20px) / 2); }   /* 2 across on tablets */
 }
 @media (max-width:560px){
   section{ padding:60px 18px; }
   .grid{ grid-template-columns:1fr; }
   .hero-art{ min-height:380px; }
-  .carousel .card{ flex-basis:80vw; }   /* one card at a time on phones */
+  .carousel{ padding:0 10px; }
+  .carousel .card{ flex-basis:100%; }                      /* one card at a time on phones */
+  .carousel-arrow{ width:38px; height:38px; }
+  .carousel-arrow.prev{ left:2px; }
+  .carousel-arrow.next{ right:2px; }
 }
 
-/* Accessibility: no motion for visitors who ask for it — the row becomes a
-   quiet, manually-scrollable strip instead of auto-playing. */
+/* Accessibility: honour reduced-motion — the slide transition is removed
+   (the JS also disables autoplay); arrows still step instantly. */
 @media (prefers-reduced-motion:reduce){
-  .carousel{ overflow-x:auto; -webkit-overflow-scrolling:touch; }
-  .carousel-track{ animation:none; }
+  .carousel-track{ transition:none; }
 }
