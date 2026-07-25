@@ -9,9 +9,14 @@
 
 ## 🔴 ACTIVE ISSUE — PWA home-screen icon on Android (READ THIS FIRST)
 
-**Latest build: v67** (`_upload/inkvoice-app-COMPLETE-v67.zip`, INCLUDES `.htaccess`) — **German PDF
-"Zwischensumme" crop fix**: split the shared `Subtotal` key so the line-item column header is now
-`Amount` (Betrag / Importe / Montant) and the totals label is `Summe` (DE). See v67 changelog. On:
+**Latest build: v68** (`_upload/inkvoice-app-COMPLETE-v68.zip`, INCLUDES `.htaccess`) — **e-invoicing
+XML on the WEB** (`js/einvoice.js`): a faithful port of the Android `ZugferdGenerator.kt` (EN 16931 /
+XRechnung CII — the exact generator that passes the online validator). Reachable via Profile →
+Advanced Sharing → "Share XML" / "Both PDF & XML". XRechnung-valid for **B2G** invoices. See v68
+changelog. On:
+
+**v67** — **German PDF "Zwischensumme" crop fix**: split the shared `Subtotal` key so the line-item
+column header is now `Amount` (Betrag / Importe / Montant) and the totals label is `Summe` (DE). On:
 
 **v66** — **APP LANGUAGE (i18n)** across the main screens (EN/DE/ES/FR), reusing the Android app's real
 translations. INVOICE PDF-output language is still TODO. See v66 changelog. Builds on:
@@ -493,6 +498,29 @@ chevron clears content.
 ---
 
 ## 9. Changelog (newest first)
+
+### 2026-07-25 — v68: EN 16931 / XRechnung e-invoice XML on the web
+The web app now generates the e-invoice XML, matching the Android app (which passes the XRechnung
+online validator). Previously the web app only printed the B2G fields into the PDF — it produced no
+XML at all, so it could never pass an XRechnung test.
+- **`js/einvoice.js`** — new. A faithful 1:1 port of the Android `ZugferdGenerator.kt`
+  (`~/Documents/APPS/Inkvoice/app/src/main/java/com/example/inkvoice/ZugferdGenerator.kt`): CII
+  (`rsm:CrossIndustryInvoice`) syntax, guideline id `…xrechnung_3.0.1`, identical element ORDER,
+  namespaces, `0.00` decimal format, XML escaping (incl. `'`→`&apos;`), line-based address parsing
+  (line 0 street / 1 city / 2 postcode / 3 country→DE), VAT country-prefixing, IBAN regex out of the
+  free-text banking block, seller `DefinedTradeContact` (BR-DE-5), PEPPOL business-process id for B2G.
+  Web-specific: the seller VAT comes from the first frozen `taxNumbers[]` entry (Android had a single
+  `taxNumber`). Exposes `buildEinvoiceXml`, `einvoiceBlob/Filename`, `openInvoiceXml`, `shareInvoiceXml`.
+- **`js/views/list.js`** — tapping a document now routes through `shareDoc()`: with Profile → Advanced
+  Sharing ON it offers PDF / XML / Both; OFF keeps the old behaviour (open PDF). Quotation dialog
+  unchanged (Edit / View-Share → same chooser).
+- **`sw.js`** — `./js/einvoice.js` added to SHELL; CACHE v67→**v68**. **`js/sync.js`** APP_VERSION →v68.
+- **Validated**: sample B2G invoice → well-formed XML + all 18 mandatory/expected fields present
+  (Java DOM + XPath, mirroring `ZugferdValidator.kt`). Structure is byte-faithful to the Android
+  output. NOTE: XRechnung (BR-DE) validity requires a **B2G** invoice — buyer reference, a 4-line
+  address (street/city/postcode/country), and an IBAN in the banking field. Run the sample through the
+  same online validator that passed for Android for the official green check.
+- Bundle: `_upload/inkvoice-app-COMPLETE-v68.zip` (v67 bundle removed).
 
 ### 2026-07-25 — v67: German PDF "Zwischensumme" crop fix (label split)
 The German line-item column header ("Zwischensumme") was too wide and cropped off the right edge in

@@ -1,11 +1,30 @@
 import { getInvoices, saveInvoice, deleteInvoice, getProfile } from '../store.js';
 import { openInvoicePdf } from '../pdf.js';
+import { openInvoiceXml } from '../einvoice.js';
 import { money, money2, fmtISO, esc, toast, dialog } from '../util.js';
 import { Icon } from '../icons.js';
 import { mountAdSlot } from '../ads.js';
 import { t } from '../i18n.js';
 
 let filterStatus = 'All';
+
+// Open/share a document. With "Advanced Sharing Options" ON (Profile), the user first
+// picks a format — PDF, the EN 16931 e-invoice XML (XRechnung/ZUGFeRD), or both. With it
+// OFF (default) the behaviour is unchanged: the PDF opens straight in the browser.
+async function shareDoc(inv){
+  if(!getProfile().advancedSharingOptions){ openInvoicePdf(inv); return; }
+  const fmt = await dialog({
+    title:t('Share/Export Invoice'),
+    buttons:[
+      { label:t('Share PDF'),       value:'pdf'  },
+      { label:t('Share XML'),       value:'xml'  },
+      { label:t('Both PDF & XML'),  value:'both' },
+    ],
+  });
+  if(fmt==='pdf')  openInvoicePdf(inv);
+  else if(fmt==='xml')  openInvoiceXml(inv);
+  else if(fmt==='both'){ openInvoicePdf(inv); openInvoiceXml(inv); }
+}
 
 export function html(ctx){
   const type = ctx.arg || 'invoice';
@@ -112,7 +131,7 @@ export function mount(ctx){
     const id = el.dataset.open;
     const inv = getInvoices().find(i => i.id === id);
     if(!inv) return;
-    if((inv.type||'invoice') !== 'quotation'){ openInvoicePdf(inv); return; }
+    if((inv.type||'invoice') !== 'quotation'){ shareDoc(inv); return; }
     const choice = await dialog({
       title:t('Select Action'),
       message:t('What do you want to do with this quotation?'),
@@ -121,7 +140,7 @@ export function mount(ctx){
         { label:t('View / Share'), value:'view' },
       ],
     });
-    if(choice==='view') openInvoicePdf(inv);
+    if(choice==='view') shareDoc(inv);
     else if(choice==='edit') ctx.navigate('/create?edit='+id);
   }));
 

@@ -1,7 +1,7 @@
 # Inkvoice Web — Handoff Checklist
 
 > Quick actionable status so work can continue in a new window. Full detail lives in
-> `progress.md` (changelog, top build note) and the memory files. Latest build: **v67**.
+> `progress.md` (changelog, top build note) and the memory files. Latest build: **v68**.
 
 ---
 
@@ -13,28 +13,32 @@
 - **Laptop sync is SHELVED** (removed from the UI; code kept in repo). App is offline, on-device only.
 - **Site is HIDDEN from Google** via `<meta name="robots" content="noindex,nofollow">` on BOTH the
   app and the marketing page. **This is intentional — do NOT remove until launch.**
-- Latest built bundle: **`_upload/inkvoice-app-COMPLETE-v67.zip`** (app) and
+- Latest built bundle: **`_upload/inkvoice-app-COMPLETE-v68.zip`** (app) and
   **`_upload/inkvoice-welcome-site.zip`** (marketing). Both are built but may not be deployed yet.
 
-## ✅ Done recently (v58 → v67, mostly UNDEPLOYED — verify what's live)
+## ✅ Done recently (v58 → v68, mostly UNDEPLOYED — verify what's live)
 
 - v58 icon fix · v59 laptop-grace · v60 boss-protection · v61 phone-only · v62 one-domain+tablet ·
   v63 bigger home icon · v64 **CRITICAL "can't make >4 invoices"** (logo compression + quota + number
   burn) + about:blank fix + Adsterra key · v65 splash logo (shrank "any" icons) · v66 **app language
   (EN/DE/ES/FR) across the whole UI + invoice PDF output language in all 4 styles** · v67 **German PDF
   "Zwischensumme" crop fix** — split the shared `Subtotal` key: line-item column header now `Amount`
-  (Betrag / Importe / Montant), totals label now `Summe` (DE). ES/FR verified unchanged & correct.
+  (Betrag / Importe / Montant), totals label now `Summe` (DE). ES/FR verified unchanged & correct. ·
+  v68 **e-invoicing XML on WEB** (`js/einvoice.js`) — faithful port of the Android `ZugferdGenerator`
+  (EN 16931 / XRechnung CII, the version that passes the online validator). Wired to "Share XML" /
+  "Both PDF & XML" via the Profile → Advanced Sharing toggle. XRechnung-valid for **B2G** invoices
+  (buyer reference + 4-line address + IBAN). Sample validated well-formed + all mandatory fields.
 
 ---
 
-## 1. DEPLOY (do this to get v67 live)
+## 1. DEPLOY (do this to get v68 live)
 
-- [ ] Upload **`_upload/inkvoice-app-COMPLETE-v67.zip`** → extract into `public_html/app/` (over the
+- [ ] Upload **`_upload/inkvoice-app-COMPLETE-v68.zip`** → extract into `public_html/app/` (over the
       top; don't empty the folder). 47 files incl. `.htaccess`, `installed.txt`, `js/i18n.js`.
 - [ ] Upload **`_upload/inkvoice-welcome-site.zip`** → extract into `public_html/` (the welcome page,
       SEO'd + noindexed; its install links point to `/app`). Do NOT delete `public_html/app/`.
 - [ ] **Verify it landed** (before trusting it):
-      `curl -s https://inkvoiceapp.com/app/js/sync.js | grep APP_VERSION` → must say **v67**.
+      `curl -s https://inkvoiceapp.com/app/js/sync.js | grep APP_VERSION` → must say **v68**.
       `curl -s https://inkvoiceapp.com/app/manifest.json | grep maskable` → `?v=65`.
 - [ ] On the phone: **remove + re-add the home-screen icon ONCE** (Android bakes the icon + splash
       into the installed app; reinstall is the only way to pick up the new icon/splash).
