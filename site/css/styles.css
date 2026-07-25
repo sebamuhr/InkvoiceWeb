@@ -229,6 +229,9 @@ section{ padding:88px 22px; }
 .foot-links{ display:flex; gap:24px; flex-wrap:wrap; justify-content:center; }
 .foot-links a{ color:var(--body); text-decoration:none; font-weight:600; font-size:15px; }
 .foot-links a:hover{ color:var(--ink); }
+.foot-contact{ color:var(--body); font-size:15px; }
+.foot-contact a{ color:var(--link); text-decoration:none; font-weight:600; }
+.foot-contact a:hover{ text-decoration:underline; }
 .copyright{ color:var(--body); font-size:14px; }
 
 /* ---------- Responsive ---------- */
