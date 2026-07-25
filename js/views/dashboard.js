@@ -1,5 +1,6 @@
 import { getProfile } from '../store.js';
 import { esc } from '../util.js';
+import { t } from '../i18n.js';
 
 export function html(){
   const p = getProfile();
@@ -10,7 +11,7 @@ export function html(){
   return `<div class="screen">
     <div class="wordmark-wrap">
       ${brand}
-      ${!p.businessName ? `<button class="btn" onclick="nav('/profile')">Set up your business</button>` : ''}
+      ${!p.businessName ? `<button class="btn" onclick="nav('/profile')">${t('Set up your business')}</button>` : ''}
     </div>
   </div>`;
 }

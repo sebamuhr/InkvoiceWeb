@@ -100,7 +100,13 @@ export function saveInvoice(inv){
   const list = getInvoices();
   const i = list.findIndex(x => x.id === inv.id);
   if(i>=0) list[i] = inv; else list.push(inv);
-  write(K.INVOICES, list);
+  try {
+    write(K.INVOICES, list);
+  } catch(e){
+    // localStorage is full (typically a large embedded logo). Signal a clear, CATCHABLE error
+    // so the caller can warn the user AND skip consuming the number → no lost/burned document.
+    const err = new Error('Storage is full'); err.code = 'STORAGE_FULL'; throw err;
+  }
   emit({entity:'invoice',action:'upsert',payload:inv});
   return inv;
 }
@@ -108,6 +114,83 @@ export function deleteInvoice(id){
   write(K.INVOICES, getInvoices().filter(i => i.id !== id));
   emit({entity:'invoice',action:'delete',payload:{id}});
 }
+
+// Wipe ALL document/profile data on THIS device. Used ONLY by the laptop/guest terminal,
+// which must never keep a copy across sessions — it holds data only while live-mirroring
+// the phone, and forgets everything the instant it disconnects. Uses direct removeItem so
+// it emits NO sync op → it can never propagate a delete/wipe to the phone. The pairing keys
+// (device/pair key) are deliberately kept so reconnect stays seamless.
+// NEVER call this on the phone (the boss) — it would erase the real, only copy of the data.
+export function wipeLocalData(){
+  localStorage.removeItem(K.PROFILE);
+  localStorage.removeItem(K.CLIENTS);
+  localStorage.removeItem(K.INVOICES);
+  localStorage.removeItem(K_CARD);
+}
+
+// ===== Data safety: persistent storage, backup / restore, backup reminder =====
+// The app is deliberately no-cloud, so on-device localStorage is the only copy. It can be
+// evicted under storage pressure or wiped when the user clears "site data". Two safeguards:
+
+// 1) Ask the browser to make our storage PERSISTENT so it is not auto-evicted. (Does NOT
+//    stop a manual "clear site data" — only a restorable backup protects against that.)
+export async function requestPersistentStorage(){
+  try{
+    if(navigator.storage && navigator.storage.persist){
+      if(await navigator.storage.persisted()) return true;
+      return await navigator.storage.persist();
+    }
+  }catch{}
+  return false;
+}
+
+// 2) Backup / restore — a JSON file the user keeps OFF the device (Drive / email). This is
+//    the real safety net: it survives a wipe, a lost phone, or moving to a new device.
+export function backupData(){
+  return {
+    app:'inkvoice-web', ts:Date.now(),
+    profile: localStorage.getItem(K.PROFILE),
+    clients: localStorage.getItem(K.CLIENTS),
+    invoices: localStorage.getItem(K.INVOICES),
+    card: localStorage.getItem(K_CARD),
+  };
+}
+export function downloadBackup(){
+  const blob = new Blob([JSON.stringify(backupData(), null, 2)], { type:'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'inkvoice-backup-' + new Date().toISOString().slice(0,10) + '.json';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  resetBackupReminder();
+}
+// Restore a backup file. Accepts values as raw JSON strings (our format) or parsed objects.
+// Throws if the file isn't a usable Inkvoice backup so the caller can warn the user.
+export function importBackup(data){
+  if(!data || typeof data !== 'object') throw new Error('Not a valid Inkvoice backup file.');
+  if(!['profile','clients','invoices','card'].some(k => data[k] != null)) throw new Error('This file has no Inkvoice data.');
+  const put = (key, val) => {
+    if(val == null) return;
+    const str = typeof val === 'string' ? val : JSON.stringify(val);
+    JSON.parse(str);                    // validate before writing (throws → caught by caller)
+    localStorage.setItem(key, str);
+  };
+  put(K.PROFILE, data.profile);
+  put(K.CLIENTS, data.clients);
+  put(K.INVOICES, data.invoices);
+  if(data.card != null) localStorage.setItem(K_CARD, String(data.card));
+  resetBackupReminder();
+}
+
+// Backup reminder: nudge after every 5 NEW documents created since the last backup.
+const K_BACKUP_CT = 'inkvoice_docs_since_backup';
+export function noteDocumentCreated(){
+  const n = (parseInt(localStorage.getItem(K_BACKUP_CT) || '0', 10) || 0) + 1;
+  localStorage.setItem(K_BACKUP_CT, String(n));
+  return n;
+}
+export const docsSinceBackup = () => parseInt(localStorage.getItem(K_BACKUP_CT) || '0', 10) || 0;
+export function resetBackupReminder(){ localStorage.setItem(K_BACKUP_CT, '0'); }
 
 // ----- Sequential numbering (per type, like the Android counters) -----
 const pad = (n) => String(n).padStart(3,'0');

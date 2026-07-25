@@ -8,18 +8,29 @@
 //   a peer that knows the key (knowing the long secret IS the trust).
 
 import { Sync, SyncLog, APP_VERSION } from './sync.js';
+import { wipeLocalData } from './store.js';
 import { toast } from './util.js';
+
+// The laptop is a TERMINAL, not a second copy: it holds NO data of its own. It shows the
+// phone's data only while connected (a live mirror) and FORGETS everything the moment it
+// disconnects — so it can never come back later with stale data and overwrite the phone.
+// This runs ONLY in the guest role; the phone (role 'phone') never wipes. A phone can never
+// even reach the guest code path (see app.js device gating), so the real data is safe.
+// Wipe the laptop's DATA (invoices/profile/clients/card) — it only ever held a live mirror
+// of the phone. Deliberately KEEPS the remembered-phones list so reconnecting stays one tap.
+function guestForgetAll(){ if (role === 'guest') wipeLocalData(); }
 
 const DEVICE_KEY = 'inkvoice_device_id';   // phone: our stable secret room key
 const PAIR_KEY   = 'inkvoice_pair_key';    // laptop: the phone's device key we paired with
 const HAS_PAIRED = 'inkvoice_has_paired';  // phone: have we ever completed a pairing?
 
-// Mutual exclusion is enforced by DESIGN, not a mode flag: reconnecting takes a
-// deliberate press on BOTH devices (laptop "Re-Connect" + phone "Accept"), and
-// while a laptop is connected the phone locks itself behind the hub screen — so
-// only one device is ever the active editor. A PAIRED phone stands a device-key
-// offer whenever it's foreground and not connected, so the laptop's Re-Connect can
-// always find it (this is the fix for "reconnect finds nothing").
+// The laptop is an ephemeral terminal for its DATA (wipes invoices/profile/clients/card on
+// disconnect), but it REMEMBERS the phone(s) it has paired with so reconnecting is one tap.
+// When more than one phone is remembered (multi-phone household) the laptop shows a SELECTOR
+// first so you pick WHICH phone before reconnecting — this is what stops a reconnect from
+// cross-wiring to the wrong phone. A NEW phone still needs its 6-digit code + Accept (so a
+// stranger at work can't connect). While a laptop is connected the phone locks itself behind
+// the hub screen, so only one device is ever the active editor.
 
 let role = 'phone';
 let bootApp = () => {};
@@ -28,6 +39,12 @@ let booted = false;        // guest: is the full app currently shown?
 let advertising = false;   // phone: a background reconnect offer is standing
 let manualMode = false;    // phone: the manual "Connect a device" modal is active
 let reconnectToken = 0;    // guest: bumps to cancel a running reconnect loop
+let hiddenGraceTimer = null; // guest: pending drop while the laptop tab is backgrounded
+
+// How long the laptop (guest) keeps the live link alive after its tab goes to the
+// background before it drops. So switching tabs, or opening the generated PDF in a
+// new tab, does NOT instantly disconnect — the user has time to come back. Tune here.
+const GUEST_HIDDEN_GRACE_MS = 180000; // 3 minutes
 
 // Shown ONLY when a connection times out (not up-front) — a VPN on either device
 // blocks the local Wi-Fi peer-to-peer link even on the same network.
@@ -61,8 +78,36 @@ function deviceId() {
   }
   return id;
 }
-const getPairKey = () => localStorage.getItem(PAIR_KEY) || '';
-const setPairKey = k => { if (k) localStorage.setItem(PAIR_KEY, k); };
+const getPairKey = () => localStorage.getItem(PAIR_KEY) || '';   // legacy single-phone key
+
+// The laptop remembers a LIST of phones it has paired with, so you can pick which one to
+// reconnect to. Each entry = { key: <phone's device key>, name: <business/owner name> }.
+const PHONES_KEY = 'inkvoice_phones';
+function getPhones() {
+  try { const a = JSON.parse(localStorage.getItem(PHONES_KEY) || '[]'); return Array.isArray(a) ? a : []; }
+  catch { return []; }
+}
+function savePhone(key, name) {
+  if (!key) return;
+  const list = getPhones();
+  const i = list.findIndex(p => p.key === key);
+  const nm = name || (i >= 0 ? list[i].name : '') || 'My phone';
+  if (i >= 0) list[i] = { key, name: nm }; else list.push({ key, name: nm });
+  localStorage.setItem(PHONES_KEY, JSON.stringify(list));
+}
+function forgetPhoneKey(key) {
+  localStorage.setItem(PHONES_KEY, JSON.stringify(getPhones().filter(p => p.key !== key)));
+}
+// One-time migration: older builds stored a single phone under PAIR_KEY → fold it into the list.
+(() => { const legacy = getPairKey(); if (legacy && !getPhones().some(p => p.key === legacy)) savePhone(legacy, ''); })();
+const escapeHtml = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const phoneNameFrom = m => { const p = m && m.snap && m.snap.profile; return (p && (p.businessName || p.ownerName)) || ''; };
+
+// Which remembered phone we're currently connecting to (set when you pick one, or when the
+// phone sends its pairkey), plus the latest name seen in a snapshot — used to remember it.
+let activeReconnectKey = '';
+let currentPhoneKey = '';
+let latestPhoneName = '';
 
 // ---------------- PHONE: "Connect a device" modal (first pairing) ----------------
 export async function openHostModal() {
@@ -222,16 +267,22 @@ function unpairPhone(propagate = true) {
 // phone is connected right now, tell it to forget us too. `propagate=false` when the phone
 // is the one that told US to forget.
 function forgetPhone(propagate = true) {
-  SyncLog.add('[ui] forget phone (clear pair key)');
+  SyncLog.add('[ui] forget phone (remove from remembered list)');
   const notify = propagate && Sync.state === 'connected';
   if (notify) Sync.send({ t: 'unpair' });
-  // Clear our key immediately so a 'closed' event in the gap can't offer Re-Connect.
+  // Drop THIS phone from the remembered list immediately so a 'closed' event in the gap
+  // can't offer Re-Connect to it.
   reconnectToken++;                        // stop any running reconnect loop
-  localStorage.removeItem(PAIR_KEY);
+  const key = activeReconnectKey || currentPhoneKey;
+  if (key) forgetPhoneKey(key);
+  localStorage.removeItem(PAIR_KEY);       // clear the legacy single key too
+  activeReconnectKey = ''; currentPhoneKey = '';
   booted = false;
+  guestForgetAll();                        // drop this session's mirrored data
   const finish = () => {
     Sync.disconnect();
-    mountConnectScreen(appEl, 'Forgotten. Enter a fresh code from your phone to connect again.');
+    if (getPhones().length) mountPhonePicker(appEl);   // still have other phones → pick one
+    else mountConnectScreen(appEl, 'Forgotten. Enter a fresh code from your phone to connect again.');
   };
   notify ? setTimeout(finish, 250) : finish();
 }
@@ -286,6 +337,7 @@ async function advertiseTick() {
 function renderPhoneReconnectBtn() {
   if (role !== 'phone') return;
   const show = localStorage.getItem(HAS_PAIRED) && Sync.state !== 'connected'
+    && window.__route === '/profile'          // only on the Profile tab — annoying elsewhere
     && !manualMode && !$('sync-modal') && !$('sync-hub');
   const existing = $('phone-recon-btn');
   if (!show) { if (existing) existing.remove(); return; }
@@ -298,8 +350,38 @@ function renderPhoneReconnectBtn() {
 // ---------------- LAPTOP/TABLET: entry point ----------------
 export function mountGuestStart(container) {
   appEl = container;
-  if (getPairKey()) startGuestReconnect(container);   // been here before → Re-Connect button
-  else mountConnectScreen(container);                  // first time → type a code
+  // Start BLANK (the phone's snapshot refills the data on connect) but KEEP the remembered
+  // phones so we can offer easy reconnect.
+  guestForgetAll();
+  if (getPhones().length) mountPhonePicker(container);   // remembered phone(s) → pick one
+  else mountConnectScreen(container);                    // none yet → type a code
+}
+
+// LAPTOP: pick which remembered phone to reconnect to (or add a new one via its code). This
+// is the multi-phone-household fix: you EXPLICITLY choose the phone, so a reconnect can never
+// cross-wire to the wrong one.
+function mountPhonePicker(container) {
+  appEl = container; booted = false; reconnectToken++;
+  const phones = getPhones();
+  if (!phones.length) { mountConnectScreen(container); return; }
+  const rows = phones.map((p, i) => `
+    <div style="display:flex;gap:8px;align-items:center;width:100%;margin:8px 0">
+      <button class="btn phone-pick" data-i="${i}" style="flex:1;text-align:left">🔗 Reconnect to <b>${escapeHtml(p.name || 'My phone')}</b></button>
+      <button class="btn ghost phone-drop" data-i="${i}" aria-label="Forget this phone" style="width:46px">✕</button>
+    </div>`).join('');
+  container.innerHTML = `
+    <div class="connect-screen">
+      <div class="cs-brand">Inkvoice<span style="color:var(--accent,#f4a52b)">.</span></div>
+      <h1>Which phone?</h1>
+      <p class="cs-lede">Pick the phone to connect to — or add a new one with its 6-digit code.</p>
+      <div style="width:100%;max-width:340px">${rows}</div>
+      <button class="btn ghost block" id="pp-new" style="max-width:340px;margin-top:14px">➕ Connect a new phone (enter code)</button>
+      ${diagLink}
+    </div>`;
+  wireDiag();
+  container.querySelectorAll('.phone-pick').forEach(b => b.onclick = () => startGuestReconnect(container, '', phones[+b.dataset.i]));
+  container.querySelectorAll('.phone-drop').forEach(b => b.onclick = () => { forgetPhoneKey(phones[+b.dataset.i].key); mountPhonePicker(container); });
+  $('pp-new').onclick = () => mountConnectScreen(container);
 }
 
 // First-time (or "enter a code instead") manual connect screen.
@@ -313,11 +395,13 @@ export function mountConnectScreen(container, note = '') {
       <input id="cc-code" class="cc-input" inputmode="numeric" autocomplete="off" maxlength="6" placeholder="––––––" aria-label="6-digit code">
       <button class="btn block" id="cc-go" style="max-width:320px">Connect</button>
       <div id="cc-status" class="cs-status">${note}</div>
+      ${getPhones().length ? '<button class="btn ghost" id="cc-back" style="max-width:320px;margin-top:12px">‹ Back to my phones</button>' : ''}
       <p class="cs-foot">Both devices must be on the same Wi-Fi. Data stays on your devices — the connection is peer-to-peer.</p>
       ${diagLink}
     </div>`;
   wireDiag();
   const code = $('cc-code'), go = $('cc-go'), status = $('cc-status');
+  $('cc-back')?.addEventListener('click', () => mountPhonePicker(appEl));
   code.focus();
   code.addEventListener('input', () => { code.value = code.value.replace(/\D/g, '').slice(0, 6); });
   code.addEventListener('keydown', e => { if (e.key === 'Enter') doConnect(); });
@@ -344,27 +428,36 @@ function toastConnected(m) {
 // Returning device (already paired): a deliberate "Re-Connect" button. Pressing it
 // joins the phone's standing offer and asks the user to confirm ON THE PHONE — no
 // code, but a clear push on both ends (auto-reconnect proved unreliable).
-export function startGuestReconnect(container, note = '') {
+export function startGuestReconnect(container, note = '', phone = null) {
   appEl = container; booted = false; reconnectToken++;   // cancel any in-flight attempt
+  const list = getPhones();
+  const p = phone || list[0] || null;
+  activeReconnectKey = p ? p.key : getPairKey();
+  currentPhoneKey = activeReconnectKey;
+  latestPhoneName = p ? (p.name || '') : '';
+  if (!activeReconnectKey) { mountConnectScreen(container, note); return; }
+  const nm = escapeHtml(p && p.name ? p.name : 'your phone');
   container.innerHTML = `
     <div class="connect-screen">
       <div class="cs-brand">Inkvoice<span style="color:var(--accent,#f4a52b)">.</span></div>
-      <h1>Reconnect to your phone</h1>
-      <p class="cs-lede">${note ? '<b>' + note + '</b><br>' : ''}Open <b>Inkvoice on your phone</b> (same Wi-Fi), press <b>Re-Connect</b>, then <b>tap Accept on your phone</b>. No code needed.</p>
+      <h1>Reconnect to ${nm}</h1>
+      <p class="cs-lede">${note ? '<b>' + escapeHtml(note) + '</b><br>' : ''}Open <b>Inkvoice on ${nm}</b> (same Wi-Fi), press <b>Re-Connect</b>, then <b>tap Accept on the phone</b>. No code needed.</p>
       <button class="btn block" id="rc-go" style="max-width:320px">🔗 Re-Connect</button>
       <div id="rc-status" class="cs-status"></div>
-      <button class="btn ghost" id="rc-manual" style="max-width:320px;margin-top:16px">Enter a code instead</button>
-      <button class="btn ghost" id="rc-forget" style="max-width:320px;margin-top:10px">Forget this phone &amp; start over</button>
+      ${list.length > 1 ? '<button class="btn ghost" id="rc-back" style="max-width:320px;margin-top:16px">‹ Choose a different phone</button>' : ''}
+      <button class="btn ghost" id="rc-manual" style="max-width:320px;margin-top:10px">Enter a code instead</button>
+      <button class="btn ghost" id="rc-forget" style="max-width:320px;margin-top:10px">Forget this phone</button>
       ${diagLink}
     </div>`;
   $('rc-go').onclick = doReconnect;
+  $('rc-back')?.addEventListener('click', () => mountPhonePicker(container));
   $('rc-manual').onclick = () => mountConnectScreen(container);
   $('rc-forget').onclick = forgetPhone;
   wireDiag();
 }
 
 async function doReconnect() {
-  const key = getPairKey();
+  const key = activeReconnectKey || getPairKey();
   if (!key) { mountConnectScreen(appEl); return; }
   const btn = $('rc-go');
   const token = ++reconnectToken; booted = false;
@@ -416,14 +509,30 @@ export function initSyncUI(opts) {
   //    reconnect (and we ask you to confirm with the Reconnect prompt).
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') {
-      // Going to the background — the OS suspends the phone, and desktop browsers
-      // throttle/discard inactive tabs, either of which silently kills the link.
-      // Drop it cleanly NOW (best-effort 'bye') so the other side learns instantly
-      // and is ready; we reconnect automatically the moment we're visible again.
-      if (['connected', 'connecting', 'accept', 'waiting'].includes(Sync.state)) Sync.disconnect();
+      if (role === 'phone') {
+        // The phone's OS suspends the PWA when the screen turns off, which kills the
+        // link anyway — drop it cleanly NOW (best-effort 'bye') so the laptop learns
+        // instantly; we re-advertise the moment we're visible again.
+        if (['connected', 'connecting', 'accept', 'waiting'].includes(Sync.state)) Sync.disconnect();
+        return;
+      }
+      // GUEST (laptop): do NOT drop the link just because the tab lost focus — the user
+      // is almost always switching tabs or opening the generated PDF in a new tab and
+      // will be right back. Keep the live mirror and only disconnect if they stay away
+      // past the grace window. (A still-forming handshake is dropped now, as before.)
+      if (Sync.state === 'connected') {
+        clearTimeout(hiddenGraceTimer);
+        hiddenGraceTimer = setTimeout(() => {
+          hiddenGraceTimer = null;
+          if (document.visibilityState === 'hidden' && Sync.state === 'connected') Sync.disconnect();
+        }, GUEST_HIDDEN_GRACE_MS);
+      } else if (['connecting', 'accept', 'waiting'].includes(Sync.state)) {
+        Sync.disconnect();
+      }
       return;
     }
-    // Back in the foreground → reconnect immediately.
+    // Back in the foreground → cancel any pending grace-drop, then re-check the link.
+    clearTimeout(hiddenGraceTimer); hiddenGraceTimer = null;
     const reallyConnected = Sync.state === 'connected' && Sync.pc && Sync.pc.connectionState === 'connected';
     if (role === 'phone') {
       if (reallyConnected) { acquireWake(); renderHub(); return; }
@@ -451,6 +560,7 @@ export function initSyncUI(opts) {
     window.__syncUnpair = unpairPhone;
     window.__syncPaired = () => !!localStorage.getItem(HAS_PAIRED);
     window.__syncDiag = showDiag;
+    window.__syncOnNav = renderPhoneReconnectBtn;   // re-check button visibility on each tab change
     // If the laptop unpairs, forget it here too (no new-key echo back).
     Sync.onMessage(m => { if (m.t === 'unpair') unpairPhone(false); });
     Sync.onState((s, err) => {
@@ -482,15 +592,21 @@ export function initSyncUI(opts) {
     window.__syncDiag = showDiag;
     window.__syncForget = forgetPhone;
     Sync.onMessage(m => {
-      if (m.t === 'pairkey' && m.key) setPairKey(m.key);
-      else if (m.t === 'unpair') forgetPhone(false);   // phone unpaired us → drop our key, back to the code screen
+      // Remember which phone this is: the phone sends its device key ('pairkey') and its name
+      // arrives in the snapshot. Save the pair so it shows up in the selector next time.
+      if (m.t === 'snapshot') { latestPhoneName = phoneNameFrom(m) || latestPhoneName; if (currentPhoneKey) savePhone(currentPhoneKey, latestPhoneName); }
+      else if (m.t === 'pairkey' && m.key) { currentPhoneKey = m.key; savePhone(currentPhoneKey, latestPhoneName); }
+      else if (m.t === 'unpair') forgetPhone(false);   // phone dropped us → forget it + back to the picker
     });
     Sync.onState((s, err) => {
       if ((s === 'closed' || s === 'error') && booted) {
         booted = false;
-        const note = err || 'Connection lost.';
-        if (getPairKey()) startGuestReconnect(appEl, note);
-        else mountConnectScreen(appEl, note);
+        // Disconnected → wipe the live DATA mirror immediately (it only ever mirrored the
+        // phone), but KEEP the remembered phones so reconnecting is one tap.
+        guestForgetAll();
+        if (err) toast(err);
+        if (getPhones().length) mountPhonePicker(appEl);
+        else mountConnectScreen(appEl, err || 'Connection lost.');
       } else if ((s === 'closed' || s === 'error') && !booted) {
         // A pairing attempt died mid-connect: don't leave the connect screen
         // stuck on a disabled "Connecting…" forever — hand the button back.

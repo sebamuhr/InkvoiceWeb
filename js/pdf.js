@@ -5,6 +5,12 @@
 // own 2-page pagination rule (page 2 always carries >=2 items).
 import { compute } from './util.js';
 import { registerFonts } from '../vendor/fonts.js';
+import { t as tr, langCode } from './i18n.js';
+
+// The invoice PDF renders in the document's OWN frozen invoiceLanguage (set in buildPdf below),
+// NOT the app language. PL('English label') returns the label in that language (English fallback).
+let _plang = 'en';
+const PL = s => tr(s, _plang);
 
 // Font families match Android: SANS_SERIF -> Roboto, SERIF -> Noto Serif.
 const SANS = 'Roboto', SERIF = 'NotoSerif';
@@ -138,8 +144,8 @@ function professional(doc, inv, t, pageNum, startIndex){
     const num = String(inv.invoiceNumber||'').replace(/^Q/,'').replace(/^N/,'');
     T(doc, `${prefix} ${num}`, leftX, y+38, 38, HEL, true, black);
 
-    T(doc, 'Date', leftX, y+85, 13, HEL, false, black);
-    T(doc, 'Due', leftX+120, y+85, 13, HEL, false, black);
+    T(doc, PL('Date'), leftX, y+85, 13, HEL, false, black);
+    T(doc, PL('Due'), leftX+120, y+85, 13, HEL, false, black);
     T(doc, fmtDate(inv.creationDateMillis), leftX, y+108, 13, HEL, false, black);
     T(doc, fmtDate(inv.dueDateMillis), leftX+120, y+108, 13, HEL, false, black);
 
@@ -159,8 +165,8 @@ function professional(doc, inv, t, pageNum, startIndex){
     const defaultToX = leftX/2 + 220, maxToX = pageW - margin - 160;
     const toX = maxFromW>0 ? Math.min(Math.max(defaultToX, leftX+maxFromW+30), maxToX) : defaultToX;
 
-    if(from.length) T(doc, 'From:', leftX, y, 16, HEL, true, black);
-    if(to.length)   T(doc, 'To:', toX, y, 16, HEL, true, black);
+    if(from.length) T(doc, PL('From')+':', leftX, y, 16, HEL, true, black);
+    if(to.length)   T(doc, PL('To')+':', toX, y, 16, HEL, true, black);
     if(from.length || to.length) y += 16 + 3;
 
     const lh = fs*1.4; let fy = y+lh, ty = y+lh;
@@ -179,9 +185,9 @@ function professional(doc, inv, t, pageNum, startIndex){
   line(doc, margin, cy, pageW-margin, cy, midGray, 3);
   const descX = margin+10, qtyX = pageW/2.1, subX = pageW-160;
   cy += 22;
-  T(doc, 'Description', descX, cy, 16, HEL, true, black);
-  T(doc, 'Quantity', qtyX, cy, 16, HEL, true, black);
-  T(doc, 'Subtotal', subX, cy, 16, HEL, true, black);
+  T(doc, PL('Description'), descX, cy, 16, HEL, true, black);
+  T(doc, PL('Quantity'), qtyX, cy, 16, HEL, true, black);
+  T(doc, PL('Amount'), subX, cy, 16, HEL, true, black);
   cy += 8;
   line(doc, margin, cy, pageW-margin, cy, midGray, 3);
   cy += 24;
@@ -206,29 +212,32 @@ function professional(doc, inv, t, pageNum, startIndex){
     const bankY = cy + 1;
     const bl = bankLines(inv, 5); const bank = hasBank(bl);
     if(bank){
-      T(doc, 'Bank Information:', leftX, bankY, 13, HEL, true, black);
+      T(doc, PL('Bank Information')+':', leftX, bankY, 13, HEL, true, black);
       bl.forEach((l,i)=>{ if(l.trim()) T(doc, l, leftX, bankY+16+16*i, 13, HEL, false, black); });
     }
-    const lx = subX-100;
-    T(doc, `Tax ${fmt1(inv.taxRatePercentage)}%:`, lx, bankY, 13, HEL, false, black);
+    // Totals: right-align the LABEL to just left of the value so long translated labels (German
+    // "Zwischensumme:", Spanish "Saldo pendiente:") grow leftward into empty space and never
+    // collide with the amount. `lx` is the label's right edge (an 8pt gap before the value).
+    const lx = subX-8;
+    T(doc, `${PL('Tax')} ${fmt1(inv.taxRatePercentage)}%:`, lx, bankY, 13, HEL, false, black, 'right');
     T(doc, money(t.taxAmount, cur), subX, bankY, 13, HEL, false, black);
-    T(doc, 'Subtotal:', lx, bankY+22, 13, HEL, false, black);
+    T(doc, PL('Subtotal')+':', lx, bankY+22, 13, HEL, false, black, 'right');
     T(doc, money(t.subtotal, cur), subX, bankY+22, 13, HEL, false, black);
     let off = 0;
     if(Number(inv.discountPercent)>0){
-      T(doc, 'Discount (%):', lx, bankY+44, 13, HEL, false, black);
+      T(doc, PL('Discount (%)')+':', lx, bankY+44, 13, HEL, false, black, 'right');
       T(doc, `${fmt2(inv.discountPercent)}%`, subX, bankY+44, 13, HEL, false, black);
       off += 22;
     }
-    T(doc, 'Total:', lx, bankY+44+off, 13, HEL, true, black);
+    T(doc, PL('Total')+':', lx, bankY+44+off, 13, HEL, true, black, 'right');
     T(doc, money(t.grandTotal, cur), subX, bankY+44+off, 13, HEL, true, black);
     if(Number(inv.advancePayment)>0){
       off += 22;
-      T(doc, 'Advance:', lx, bankY+44+off, 13, HEL, false, black);
+      T(doc, PL('Advance')+':', lx, bankY+44+off, 13, HEL, false, black, 'right');
       T(doc, money(inv.advancePayment, cur), subX, bankY+44+off, 13, HEL, false, black);
       off += 22;
       const due = Math.max(t.grandTotal - inv.advancePayment, 0);
-      T(doc, 'Balance due:', lx, bankY+44+off, 13, HEL, true, black);
+      T(doc, PL('Balance due')+':', lx, bankY+44+off, 13, HEL, true, black, 'right');
       T(doc, money(due, cur), subX, bankY+44+off, 13, HEL, true, black);
     }
     const bankH = bank ? bl.length*16 : 0;
@@ -268,9 +277,9 @@ function elegant(doc, inv, t, pageNum, startIndex){
     const prefix = inv.type==='quotation' ? 'Q°':'N°';
     const num = String(inv.invoiceNumber||'').replace(/^Q/,'').replace(/^N/,'');
     T(doc, `${prefix} ${num}`, leftX, y+45, 42, SER, true, dark);
-    T(doc, 'Date', rightX, y+20, 14, SER, false, dark, 'right');
+    T(doc, PL('Date'), rightX, y+20, 14, SER, false, dark, 'right');
     T(doc, fmtDate(inv.creationDateMillis), rightX, y+40, 14, SER, false, dark, 'right');
-    T(doc, 'Due', rightX, y+70, 14, SER, false, dark, 'right');
+    T(doc, PL('Due'), rightX, y+70, 14, SER, false, dark, 'right');
     T(doc, fmtDate(inv.dueDateMillis), rightX, y+90, 14, SER, false, dark, 'right');
 
     const logoSize = 120, logoCY = y + 80;
@@ -284,8 +293,8 @@ function elegant(doc, inv, t, pageNum, startIndex){
     const defaultToX = leftX/2 + 220, maxToX = pageW - margin - 160;
     const toX = maxFromW>0 ? Math.min(Math.max(defaultToX, leftX+maxFromW+30), maxToX) : defaultToX;
 
-    if(from.length) T(doc, 'From:', leftX, y, 16, SER, true, dark);
-    if(to.length)   T(doc, 'To:', toX, y, 16, SER, true, dark);
+    if(from.length) T(doc, PL('From')+':', leftX, y, 16, SER, true, dark);
+    if(to.length)   T(doc, PL('To')+':', toX, y, 16, SER, true, dark);
     if(from.length || to.length) y += fs + 3;
 
     const lh = fs*1.4; let fy = y+lh, ty = y+lh;
@@ -303,9 +312,9 @@ function elegant(doc, inv, t, pageNum, startIndex){
 
   let cy = y;
   const descX = leftX, qtyX = pageW/2.2, subX = pageW - margin - 80;
-  T(doc, 'Description', descX, cy, 15, SER, true, dark);
-  T(doc, 'Quantity', qtyX, cy, 15, SER, true, dark);
-  T(doc, 'Subtotal', subX, cy, 15, SER, true, dark);
+  T(doc, PL('Description'), descX, cy, 15, SER, true, dark);
+  T(doc, PL('Quantity'), qtyX, cy, 15, SER, true, dark);
+  T(doc, PL('Amount'), subX, cy, 15, SER, true, dark);
   cy += 15;
 
   const total = items.length;
@@ -328,7 +337,7 @@ function elegant(doc, inv, t, pageNum, startIndex){
     const bl = bankLines(inv, 4); const bank = hasBank(bl);
     const infoY = cy; let bankH = 0;
     if(bank){
-      T(doc, 'Bank Information', leftX, infoY, 14, SER, true, dark);
+      T(doc, PL('Bank Information'), leftX, infoY, 14, SER, true, dark);
       bl.forEach((l,i)=>{ if(l.trim()) T(doc, l, leftX, infoY+18+i*18, 12, SER, false, dark); });
       bankH = 18 + bl.length*18;
     }
@@ -337,26 +346,26 @@ function elegant(doc, inv, t, pageNum, startIndex){
     if(Number(inv.discountPercent)>0) totalsH += 22;
     const blockH = Math.max(bankH, totalsH);
 
-    const lx = pageW - margin - 200, vx = subX;
-    T(doc, `Tax ${fmt1(inv.taxRatePercentage)}%:`, lx, infoY, 12, SER, false, dark);
+    const vx = subX, lx = vx - 8;   // right-align labels 8pt before the value (fits long translations)
+    T(doc, `${PL('Tax')} ${fmt1(inv.taxRatePercentage)}%:`, lx, infoY, 12, SER, false, dark, 'right');
     T(doc, money(t.taxAmount, cur), vx, infoY, 12, SER, false, dark);
-    T(doc, 'Subtotal:', lx, infoY+25, 12, SER, false, dark);
+    T(doc, PL('Subtotal')+':', lx, infoY+25, 12, SER, false, dark, 'right');
     T(doc, money(t.subtotal, cur), vx, infoY+25, 12, SER, false, dark);
     let ro = 0;
     if(Number(inv.discountPercent)>0){
-      T(doc, 'Discount (%):', lx, infoY+50, 12, SER, false, dark);
+      T(doc, PL('Discount (%)')+':', lx, infoY+50, 12, SER, false, dark, 'right');
       T(doc, `${fmt2(inv.discountPercent)}%`, vx, infoY+50, 12, SER, false, dark);
       ro += 22;
     }
-    T(doc, 'Total:', lx, infoY+50+ro, 12, SER, true, dark);
+    T(doc, PL('Total')+':', lx, infoY+50+ro, 12, SER, true, dark, 'right');
     T(doc, money(t.grandTotal, cur), vx, infoY+50+ro, 12, SER, true, dark);
     if(Number(inv.advancePayment)>0){
       ro += 22;
-      T(doc, 'Advance:', lx, infoY+50+ro, 12, SER, false, dark);
+      T(doc, PL('Advance')+':', lx, infoY+50+ro, 12, SER, false, dark, 'right');
       T(doc, money(inv.advancePayment, cur), vx, infoY+50+ro, 12, SER, false, dark);
       ro += 22;
       const due = Math.max(t.grandTotal - inv.advancePayment, 0);
-      T(doc, 'Balance due:', lx, infoY+50+ro, 12, SER, true, dark);
+      T(doc, PL('Balance due')+':', lx, infoY+50+ro, 12, SER, true, dark, 'right');
       T(doc, money(due, cur), vx, infoY+50+ro, 12, SER, true, dark);
     }
     let afterY = infoY + blockH + 10;
@@ -390,8 +399,8 @@ function minimalist(doc, inv, t, pageNum, startIndex){
     const num = String(inv.invoiceNumber||'').replace(/^Q/,'').replace(/^N/,'');
     T(doc, `${prefix} ${num}`, pageW - margin - 120 - 7, margin+35, 32, HEL, true, black);
 
-    T(doc, 'Date', pageW - margin - 120 - 20, margin+70, 14, HEL, true, black);
-    T(doc, 'Due', pageW - margin - 60, margin+70, 14, HEL, true, black);
+    T(doc, PL('Date'), pageW - margin - 120 - 20, margin+70, 14, HEL, true, black);
+    T(doc, PL('Due'), pageW - margin - 60, margin+70, 14, HEL, true, black);
     T(doc, fmtDate(inv.creationDateMillis), pageW - margin - 120 - 20, margin+90, 13, HEL, false, black);
     T(doc, fmtDate(inv.dueDateMillis), pageW - margin - 60, margin+90, 13, HEL, false, black);
 
@@ -403,8 +412,8 @@ function minimalist(doc, inv, t, pageNum, startIndex){
     const defaultToX = margin/2 + 180, maxToX = pageW - margin - 140;
     const toX = maxFromW>0 ? Math.min(Math.max(defaultToX, margin+4+maxFromW+30), maxToX) : defaultToX;
 
-    if(from.length) T(doc, 'From:', margin+4, yFT+30, 16, HEL, true, black);
-    if(to.length)   T(doc, 'To:', toX, yFT+30, 16, HEL, true, black);
+    if(from.length) T(doc, PL('From')+':', margin+4, yFT+30, 16, HEL, true, black);
+    if(to.length)   T(doc, PL('To')+':', toX, yFT+30, 16, HEL, true, black);
     const lh = fs*1.4; let fy = yFT+30+lh, ty = yFT+30+lh;
     for(let i=0;i<maxLines;i++){
       if(i<from.length) T(doc, from[i], margin+4, fy, fs, HEL, false, black);
@@ -419,9 +428,9 @@ function minimalist(doc, inv, t, pageNum, startIndex){
   }
 
   let cy = y;
-  T(doc, 'Description', margin+8, cy, 16, HEL, true, black);
-  T(doc, 'Quantity', pageW/2 - 30, cy, 16, HEL, true, black);
-  T(doc, 'Subtotal', pageW - margin - 80, cy, 16, HEL, true, black);
+  T(doc, PL('Description'), margin+8, cy, 16, HEL, true, black);
+  T(doc, PL('Quantity'), pageW/2 - 30, cy, 16, HEL, true, black);
+  T(doc, PL('Amount'), pageW - margin - 80, cy, 16, HEL, true, black);
   cy += 20;
 
   const total = items.length;
@@ -443,29 +452,29 @@ function minimalist(doc, inv, t, pageNum, startIndex){
   if(!needsNext){
     const bl = bankLines(inv, 4); const bank = hasBank(bl);
     if(bank){
-      T(doc, 'Bank Information:', margin+8, cy, 14, HEL, true, black);
+      T(doc, PL('Bank Information')+':', margin+8, cy, 14, HEL, true, black);
       bl.forEach((l,i)=>{ if(l.trim()) T(doc, l, margin+8, cy+18+i*15, 12, HEL, false, black); });
     }
-    const lx = pageW - margin - 200, vx = pageW - margin - 80;
-    T(doc, `Tax ${fmt1(inv.taxRatePercentage)}%:`, lx, cy, 12, HEL, false, black);
+    const vx = pageW - margin - 80, lx = vx - 8;   // right-align labels 8pt before the value
+    T(doc, `${PL('Tax')} ${fmt1(inv.taxRatePercentage)}%:`, lx, cy, 12, HEL, false, black, 'right');
     T(doc, money(t.taxAmount, cur), vx, cy, 12, HEL, false, black);
-    T(doc, 'Subtotal:', lx, cy+25, 12, HEL, false, black);
+    T(doc, PL('Subtotal')+':', lx, cy+25, 12, HEL, false, black, 'right');
     T(doc, money(t.subtotal, cur), vx, cy+25, 12, HEL, false, black);
     let off = 0;
     if(Number(inv.discountPercent)>0){
-      T(doc, 'Discount (%):', lx, cy+50+off, 12, HEL, false, black);
+      T(doc, PL('Discount (%)')+':', lx, cy+50+off, 12, HEL, false, black, 'right');
       T(doc, `${fmt2(inv.discountPercent)}%`, vx, cy+50+off, 12, HEL, false, black);
       off += 22;
     }
-    T(doc, 'Total:', lx, cy+50+off, 12, HEL, true, black);
+    T(doc, PL('Total')+':', lx, cy+50+off, 12, HEL, true, black, 'right');
     T(doc, money(t.grandTotal, cur), vx, cy+50+off, 12, HEL, true, black);
     off += 22;
     if(Number(inv.advancePayment)>0){
-      T(doc, 'Advance:', lx, cy+50+off, 12, HEL, false, black);
+      T(doc, PL('Advance')+':', lx, cy+50+off, 12, HEL, false, black, 'right');
       T(doc, money(inv.advancePayment, cur), vx, cy+50+off, 12, HEL, false, black);
       off += 22;
       const due = Math.max(t.grandTotal - inv.advancePayment, 0);
-      T(doc, 'Balance due:', lx, cy+50+off, 12, HEL, true, black);
+      T(doc, PL('Balance due')+':', lx, cy+50+off, 12, HEL, true, black, 'right');
       T(doc, money(due, cur), vx, cy+50+off, 12, HEL, true, black);
       off += 10;
     }
@@ -498,8 +507,8 @@ function classic(doc, inv, t, pageNum, startIndex){
     const logoSize = 92;
     drawLogo(doc, margin + logoSize/2, margin + logoSize/2, logoSize, inv.logoUri);
 
-    T(doc, 'Date', margin+logoSize+24, margin+30, 14, HEL, true, black);
-    T(doc, 'Due', pageW/2 + 22, margin+30, 14, HEL, true, black);
+    T(doc, PL('Date'), margin+logoSize+24, margin+30, 14, HEL, true, black);
+    T(doc, PL('Due'), pageW/2 + 22, margin+30, 14, HEL, true, black);
     T(doc, fmtDate(inv.creationDateMillis), margin+logoSize+24, margin+50, 13, HEL, false, black);
     T(doc, fmtDate(inv.dueDateMillis), pageW/2 + 22, margin+50, 13, HEL, false, black);
 
@@ -511,8 +520,8 @@ function classic(doc, inv, t, pageNum, startIndex){
     const defaultToX = margin/2 + 220, maxToX = pageW - margin - 160;
     const toX = maxFromW>0 ? Math.min(Math.max(defaultToX, margin+6+maxFromW+28), maxToX) : defaultToX;
 
-    if(from.length) T(doc, 'From:', margin+6, yFT, 16, HEL, true, black);
-    if(to.length)   T(doc, 'To:', toX, yFT, 16, HEL, true, black);
+    if(from.length) T(doc, PL('From')+':', margin+6, yFT, 16, HEL, true, black);
+    if(to.length)   T(doc, PL('To')+':', toX, yFT, 16, HEL, true, black);
     let coff = yFT;
     if(from.length || to.length) coff += fs + 4;
     const lh = fs*1.35; let fy = coff, ty = coff;
@@ -529,9 +538,9 @@ function classic(doc, inv, t, pageNum, startIndex){
   }
 
   let cy = y;
-  T(doc, 'Description', margin+8, cy, 16, HEL, true, black);
-  T(doc, 'Quantity', pageW/2 - 24, cy, 16, HEL, true, black);
-  T(doc, 'Subtotal', pageW - margin - 82, cy, 16, HEL, true, black);
+  T(doc, PL('Description'), margin+8, cy, 16, HEL, true, black);
+  T(doc, PL('Quantity'), pageW/2 - 24, cy, 16, HEL, true, black);
+  T(doc, PL('Amount'), pageW - margin - 82, cy, 16, HEL, true, black);
   cy += 20;
 
   const total = items.length;
@@ -553,29 +562,29 @@ function classic(doc, inv, t, pageNum, startIndex){
   if(!needsNext){
     const bl = bankLines(inv, 4); const bank = hasBank(bl);
     if(bank){
-      T(doc, 'Bank Information:', margin+8, cy, 14, HEL, true, black);
+      T(doc, PL('Bank Information')+':', margin+8, cy, 14, HEL, true, black);
       bl.forEach((l,i)=>{ if(l.trim()) T(doc, l, margin+8, cy+18+i*15, 12, HEL, false, black); });
     }
-    const lx = pageW - margin - 200, vx = pageW - margin - 80;
-    T(doc, `Tax ${fmt1(inv.taxRatePercentage)}%:`, lx, cy, 12, HEL, false, black);
+    const vx = pageW - margin - 80, lx = vx - 8;   // right-align labels 8pt before the value
+    T(doc, `${PL('Tax')} ${fmt1(inv.taxRatePercentage)}%:`, lx, cy, 12, HEL, false, black, 'right');
     T(doc, money(t.taxAmount, cur), vx, cy, 12, HEL, false, black);
-    T(doc, 'Subtotal:', lx, cy+25, 12, HEL, false, black);
+    T(doc, PL('Subtotal')+':', lx, cy+25, 12, HEL, false, black, 'right');
     T(doc, money(t.subtotal, cur), vx, cy+25, 12, HEL, false, black);
     let off = 0, gapAfterDue = 0;
     if(Number(inv.discountPercent)>0){
-      T(doc, 'Discount (%):', lx, cy+50+off, 12, HEL, false, black);
+      T(doc, PL('Discount (%)')+':', lx, cy+50+off, 12, HEL, false, black, 'right');
       T(doc, `${fmt2(inv.discountPercent)}%`, vx, cy+50+off, 12, HEL, false, black);
       off += 22;
     }
-    T(doc, 'Total:', lx, cy+50+off, 12, HEL, true, black);
+    T(doc, PL('Total')+':', lx, cy+50+off, 12, HEL, true, black, 'right');
     T(doc, money(t.grandTotal, cur), vx, cy+50+off, 12, HEL, true, black);
     if(Number(inv.advancePayment)>0){
       off += 22;
-      T(doc, 'Advance:', lx, cy+50+off, 12, HEL, false, black);
+      T(doc, PL('Advance')+':', lx, cy+50+off, 12, HEL, false, black, 'right');
       T(doc, money(inv.advancePayment, cur), vx, cy+50+off, 12, HEL, false, black);
       off += 22;
       const due = Math.max(t.grandTotal - inv.advancePayment, 0);
-      T(doc, 'Balance due:', lx, cy+50+off, 12, HEL, true, black);
+      T(doc, PL('Balance due')+':', lx, cy+50+off, 12, HEL, true, black, 'right');
       T(doc, money(due, cur), vx, cy+50+off, 12, HEL, true, black);
       gapAfterDue = 10;
     }
@@ -593,11 +602,31 @@ function classic(doc, inv, t, pageNum, startIndex){
 
 const RENDERERS = { Professional:professional, Elegant:elegant, Minimalist:minimalist, Classic:classic };
 
+// Totals for the PDF. A saved document must render the amounts FROZEN at its creation so
+// it never changes again — even if the compute() formula changes in a future app version.
+// So we use the invoice's stored totals when present, and only fall back to recomputing
+// for legacy documents saved before totals were snapshotted.
+function frozenTotals(inv){
+  if(inv && inv.grandTotal != null && inv.subtotal != null){
+    const subtotal = Number(inv.subtotal)||0;
+    const discountAmount = inv.discountAmount != null
+      ? Number(inv.discountAmount)||0 : subtotal*(Number(inv.discountPercent)||0)/100;
+    const taxBasis = inv.taxBasis != null ? Number(inv.taxBasis)||0 : subtotal - discountAmount;
+    const taxAmount = Number(inv.taxAmount)||0;
+    const grandTotal = Number(inv.grandTotal)||0;
+    const dueAmount = inv.dueAmount != null
+      ? Number(inv.dueAmount)||0 : grandTotal - (Number(inv.advancePayment)||0);
+    return { subtotal, discountAmount, taxBasis, taxAmount, grandTotal, dueAmount };
+  }
+  return compute(inv.items, inv.taxRatePercentage, inv.discountPercent, inv.advancePayment);
+}
+
 export function buildPdf(inv){
   const JsPDF = jsPDFCtor();
   const doc = new JsPDF({ unit:'pt', format:[PAGE_W, PAGE_H], compress:true });
   registerFonts(doc);
-  const t = compute(inv.items, inv.taxRatePercentage, inv.discountPercent, inv.advancePayment);
+  const t = frozenTotals(inv);
+  _plang = langCode(inv.invoiceLanguage);   // this document's frozen PDF language
   const render = RENDERERS[inv.pdfStyle] || professional;
 
   let pageNum = 1, more = true, startIdx = 0;
@@ -632,7 +661,9 @@ export function openInvoicePdf(inv){
   // (pop-up blocker / a locked-down standalone PWA), fall back to a download so the
   // user still gets the file — never open it twice.
   let how = 'opened';
-  const win = window.open(url, '_blank', 'noopener');
+  // No 'noopener' here — with it, some browsers (notably in a standalone PWA) drop the blob:
+  // URL and open a blank about:blank tab instead of the PDF.
+  const win = window.open(url, '_blank');
   if(!win){
     const a = document.createElement('a');
     a.href = url; a.download = pdfFilename(inv);

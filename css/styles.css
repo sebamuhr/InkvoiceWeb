@@ -34,6 +34,8 @@ button,input,select,textarea{font-family:inherit;font-size:16px;color:var(--ink)
   padding:calc(env(safe-area-inset-top) + 10px) 16px calc(var(--nav-h) + env(safe-area-inset-bottom) + 20px);
   max-width:640px;margin:0 auto;
 }
+/* Create/Profile hide the bottom bar → don't reserve space for it. */
+#app.no-tabbar .screen{padding-bottom:calc(env(safe-area-inset-bottom) + 24px)}
 .topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:6px 0 10px;min-height:44px}
 .topbar h1{font-size:24px;font-weight:800;margin:0;letter-spacing:-.01em}
 .back{display:inline-flex;align-items:center;gap:4px;color:var(--muted);background:none;border:0;padding:8px 4px 8px 0;cursor:pointer;font-weight:600}
@@ -156,6 +158,10 @@ select.ctrl{appearance:none;-webkit-appearance:none;background-image:none}
 .summary .tot{font-size:14px;text-align:right;line-height:1.5;min-width:120px}
 .summary .tot .g{font-weight:800}
 .summary .tot .green{color:var(--green);font-weight:800}
+.summary .no-wrap{flex:1;min-width:0}
+.summary .taxpick{position:relative;display:inline-block;margin-top:4px;max-width:100%}
+.summary .taxpick > span{font-size:15px;font-weight:700;white-space:nowrap}
+.summary .taxpick > select{position:absolute;inset:0;width:100%;height:100%;opacity:0;border:0;background:none;font-size:16px}
 
 /* ---------- Items ---------- */
 .section-h{font-size:22px;font-weight:800;margin:18px 2px 4px}

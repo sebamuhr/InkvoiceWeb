@@ -3,6 +3,7 @@ import { openInvoicePdf } from '../pdf.js';
 import { money, money2, fmtISO, esc, toast, dialog } from '../util.js';
 import { Icon } from '../icons.js';
 import { mountAdSlot } from '../ads.js';
+import { t } from '../i18n.js';
 
 let filterStatus = 'All';
 
@@ -25,17 +26,19 @@ export function html(ctx){
 
   // Cards with an ad interleaved after every 5th document (5,10,15…).
   // Fewer than 5 → no ad; the number of ads grows with the list.
+  const emptyMsg = (type==='quotation' ? t('No quotations yet. Tap Create to add one.') : t('No invoices yet. Tap Create to add one.'));
   const cards = docs.length ? cardsWithAds(docs)
-    : `<div class="empty">${Icon.doc}<div>No ${type}s yet. Tap <b>Create</b> to add one.</div></div>`;
+    : `<div class="empty">${Icon.doc}<div>${emptyMsg}</div></div>`;
 
+  // The option VALUE stays English (status is stored in English); only the label is translated.
   const opts = ['All','Pending','Paid','Overdue','Cancelled']
-    .map(s=>`<option ${filterStatus===s?'selected':''}>${s}</option>`).join('');
+    .map(s=>`<option value="${s}" ${filterStatus===s?'selected':''}>${t(s)}</option>`).join('');
 
   return `<div class="screen">
     <div class="totalcard">
       <div>
-        <div class="big">TOTAL: ${money2(total,p.currency)}</div>
-        <div class="sub">Tax ${taxPct}%: ${money2(tax,p.currency)}</div>
+        <div class="big">${t('Total').toUpperCase()}: ${money2(total,p.currency)}</div>
+        <div class="sub">${t('Tax')} ${taxPct}%: ${money2(tax,p.currency)}</div>
       </div>
       <div class="filter">
         <select id="filter">${opts}</select>
@@ -44,8 +47,8 @@ export function html(ctx){
     </div>
 
     <div class="radios">
-      <div class="radio ${type==='invoice'?'on':''}" onclick="nav('/invoices')"><span class="dot"></span>Invoices</div>
-      <div class="radio ${type==='quotation'?'on':''}" onclick="nav('/quotations')"><span class="dot"></span>Quotations</div>
+      <div class="radio ${type==='invoice'?'on':''}" onclick="nav('/invoices')"><span class="dot"></span>${t('Invoices')}</div>
+      <div class="radio ${type==='quotation'?'on':''}" onclick="nav('/quotations')"><span class="dot"></span>${t('Quotations')}</div>
     </div>
 
     ${cards}
@@ -74,20 +77,22 @@ function cardsWithAds(docs){
 }
 
 function card(inv){
-  const p = getProfile();
   const advance = Number(inv.advancePayment)||0;
   const due = (Number(inv.grandTotal)||0) - advance;
   const paid = inv.status==='Paid';
   const prefix = (inv.type==='quotation') ? 'Q' : 'N';
+  // Use the invoice's OWN frozen currency, never the live profile — a saved document must
+  // never change when the profile currency changes. (Legacy docs without one fall back.)
+  const curr = inv.currency || getProfile().currency;
   return `<div class="doccard">
     <div style="min-width:0;flex:1;cursor:pointer" data-open="${inv.id}">
       <div class="no">${prefix}° ${esc(String(inv.invoiceNumber).replace(/^[NQ]/,''))}</div>
       <div class="client">${esc(inv.clientName||'—')}</div>
-      <div class="meta">Created: ${fmtISO(inv.creationDateMillis)}<br>Total: ${money2(inv.grandTotal,p.currency)}</div>
-      ${advance>0?`<div class="due">Due: ${money2(due,p.currency)}</div>`:''}
+      <div class="meta">${t('Created')}: ${fmtISO(inv.creationDateMillis)}<br>${t('Total')}: ${money2(inv.grandTotal,curr)}</div>
+      ${advance>0?`<div class="due">${t('Due')}: ${money2(due,curr)}</div>`:''}
     </div>
     <div class="right">
-      <div class="toggle ${paid?'paid':''}" data-toggle="${inv.id}" title="${paid?'Paid':'Unpaid'}"><span class="knob"></span></div>
+      <div class="toggle ${paid?'paid':''}" data-toggle="${inv.id}" title="${paid?t('Paid'):t('Unpaid')}"><span class="knob"></span></div>
       <button class="iconbtn trash" data-del="${inv.id}">${Icon.trash}</button>
     </div>
   </div>`;
@@ -109,11 +114,11 @@ export function mount(ctx){
     if(!inv) return;
     if((inv.type||'invoice') !== 'quotation'){ openInvoicePdf(inv); return; }
     const choice = await dialog({
-      title:'Select Action',
-      message:'What do you want to do with this quotation?',
+      title:t('Select Action'),
+      message:t('What do you want to do with this quotation?'),
       buttons:[
-        { label:'Edit', value:'edit', class:'ghost' },
-        { label:'View / Share', value:'view' },
+        { label:t('Edit'), value:'edit', class:'ghost' },
+        { label:t('View / Share'), value:'view' },
       ],
     });
     if(choice==='view') openInvoicePdf(inv);
@@ -130,8 +135,8 @@ export function mount(ctx){
 
   document.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', e => {
     e.stopPropagation();
-    if(confirm('Delete this document? This cannot be undone.')){
-      deleteInvoice(b.dataset.del); toast('Deleted'); ctx.navigate(ctx.path);
+    if(confirm(t('Delete this document? This cannot be undone.'))){
+      deleteInvoice(b.dataset.del); toast(t('Deleted')); ctx.navigate(ctx.path);
     }
   }));
 }

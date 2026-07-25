@@ -1,6 +1,7 @@
 import { getProfile, getCardColor, saveCardColor } from '../store.js';
 import { esc, toast, shareFile } from '../util.js';
 import { Icon } from '../icons.js';
+import { t as tr } from '../i18n.js';   // aliased: `t` is used locally for card text lines
 
 // Background palette — same gradient the Android app's slider uses.
 const PALETTE = [
@@ -41,8 +42,8 @@ let cardPngColor = null;   // the hex the ready PNG was drawn for
 export function html(){
   const p = getProfile();
   if(!p.businessName){
-    return `<div class="screen"><div class="empty">${Icon.bizcard}<div>Set up your business profile first.</div>
-      <button class="btn" style="margin-top:14px" onclick="nav('/profile')">Go to Profile</button></div></div>`;
+    return `<div class="screen"><div class="empty">${Icon.bizcard}<div>${tr('Set up your business profile first.')}</div>
+      <button class="btn" style="margin-top:14px" onclick="nav('/profile')">${tr('Go to Profile')}</button></div></div>`;
   }
   bgColor = getCardColor();
 
@@ -51,7 +52,7 @@ export function html(){
   const gradient = `linear-gradient(90deg, ${PALETTE.join(',')})`;
 
   return `<div class="screen card-screen">
-    <div class="topbar"><h1>Business Card</h1></div>
+    <div class="topbar"><h1>${tr('Business Card')}</h1></div>
     <div class="card-center">
     <div class="bizcard" id="card">
       <div class="bc-logo">${p.logoUri ? `<img src="${esc(p.logoUri)}" alt="">` : `<div class="c"></div>`}</div>
@@ -62,12 +63,12 @@ export function html(){
     </div>
 
     <div class="card-color">
-      <div class="cc-label">Background color</div>
+      <div class="cc-label">${tr('Background Color')}</div>
       <input type="range" id="cc-slider" class="cc-slider" min="0" max="1000" value="0"
         style="background:${gradient}">
     </div>
 
-    <button class="btn block" id="share" style="margin-top:16px">${Icon.share} Share Card</button>
+    <button class="btn block" id="share" style="margin-top:16px">${Icon.share} ${tr('Share Card')}</button>
     </div>
   </div>`;
 }
@@ -130,10 +131,10 @@ async function shareCard(p){
       const blob = await drawCardPng(p, bgColor);
       const name = (p.businessName || p.ownerName || 'card').replace(/\s+/g,'-');
       file = new File([blob], `${name}-card.png`, { type:'image/png' });
-    }catch(e){ toast('Could not prepare the card'); return; }
+    }catch(e){ toast(tr('Could not prepare the card')); return; }
   }
   const how = await shareFile(file, p.businessName || 'Business Card');
-  if(how==='opened') toast('Sharing files isn’t supported here — opened the card so you can share or save it');
+  if(how==='opened') toast(tr('Sharing files isn’t supported here — opened the card so you can share or save it'));
 }
 
 function roundRectPath(ctx, x, y, w, h, r){

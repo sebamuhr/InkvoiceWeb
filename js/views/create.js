@@ -1,9 +1,11 @@
 import { getProfile, getClients, findClientByName, saveClient, saveInvoice,
-         getInvoice, peekNextNumber, consumeNumber, uid, PDF_STYLES } from '../store.js';
+         getInvoice, peekNextNumber, consumeNumber, uid, PDF_STYLES,
+         noteDocumentCreated, downloadBackup } from '../store.js';
 import { openInvoicePdf } from '../pdf.js';
 import { compute, money2, currencySymbol, toInputDate, fromInputDate, todayMs, plusDaysMs, esc, toast, isEmail } from '../util.js';
 import { Icon } from '../icons.js';
 import { mfield } from '../ui.js';
+import { t as tr } from '../i18n.js';   // aliased: `t` is already used locally for compute() totals
 
 let draft = null;
 let editingItem = -1;
@@ -59,88 +61,77 @@ export function html(ctx){
   const isQ = draft.type==='quotation';
   const cur = currencySymbol(p.currency).trim();
 
-  const taxOptions = Array.isArray(p.taxNumbers) ? p.taxNumbers.filter(t => (t.number||'').trim()) : [];
-  const taxPicker = taxOptions.length > 1 ? `
-    <div class="mfield" style="margin-top:6px">
-      <select id="tax-select" class="ctrl">
-        ${taxOptions.map((t,i)=>`<option value="${i}" ${draft.selectedTaxIndex===i?'selected':''}>${esc((t.label||'Tax Number')+' — '+t.number)}</option>`).join('')}
-      </select>
-      <label for="tax-select">Tax Number for this document</label>
-      <span class="icon-r">${Icon.chev}</span>
-    </div>` : '';
-
   return `<div class="screen">
     <div class="summary" id="summary">${summaryInner()}</div>
-    ${taxPicker}
 
     <div class="radios">
-      <div class="radio ${!isQ?'on':''}" id="r-inv"><span class="dot"></span>Invoice</div>
-      <div class="radio ${isQ?'on':''}" id="r-quo"><span class="dot"></span>Quotation</div>
+      <div class="radio ${!isQ?'on':''}" id="r-inv"><span class="dot"></span>${tr('Invoice')}</div>
+      <div class="radio ${isQ?'on':''}" id="r-quo"><span class="dot"></span>${tr('Quotation')}</div>
     </div>
 
     <div class="rowhead">
-      <h3 class="section-h" style="margin:0">Client Information</h3>
+      <h3 class="section-h" style="margin:0">${tr('Client Information')}</h3>
       <label class="b2g-check"><input type="checkbox" id="b2g" ${draft.b2g?'checked':''}> B2G <span class="help">${Icon.help}</span></label>
     </div>
 
-    ${mfield({id:'c-name',label:'Client Name',required:true,value:draft.clientName,list:'clients',attrs:'autocomplete="off" autocapitalize="words"'})}
+    ${mfield({id:'c-name',label:tr('Client Name'),required:true,value:draft.clientName,list:'clients',attrs:'autocomplete="off" autocapitalize="words"'})}
     <datalist id="clients">${clients.map(c=>`<option value="${esc(c.name)}">`).join('')}</datalist>
-    ${mfield({id:'c-email',label:'Email',type:'email',value:draft.clientEmail})}
-    <div class="field-warn hidden" id="warn-cemail">Enter a valid email — like name@example.com</div>
-    ${mfield({id:'c-vat',label:'Tax Number'+(draft.b2g?' *':''),value:draft.clientVatId})}
-    ${mfield({id:'c-addr',label:'Address'+(draft.b2g?' *':''),textarea:true,value:draft.clientAddress,counter:90})}
+    ${mfield({id:'c-email',label:tr('Email'),type:'email',value:draft.clientEmail})}
+    <div class="field-warn hidden" id="warn-cemail">${tr('Enter a valid email — like name@example.com')}</div>
+    ${mfield({id:'c-vat',label:tr('Tax Number')+(draft.b2g?' *':''),value:draft.clientVatId})}
+    ${mfield({id:'c-addr',label:tr('Address')+(draft.b2g?' *':''),textarea:true,value:draft.clientAddress,counter:90})}
 
     <div id="b2g-fields" class="${draft.b2g?'':'hidden'}">
-      ${mfield({id:'b-ref',label:'Buyer Reference',required:true,value:draft.buyerReference})}
-      ${mfield({id:'b-dept',label:'Department / Area',value:draft.departmentArea})}
+      ${mfield({id:'b-ref',label:tr('Buyer Reference'),required:true,value:draft.buyerReference})}
+      ${mfield({id:'b-dept',label:tr('Department/Area'),value:draft.departmentArea})}
     </div>
 
     <div class="two">
-      ${mfield({id:'d-date',label:'Creation',required:true,type:'date',value:toInputDate(draft.creationDateMillis),iconRight:Icon.calendar})}
-      ${mfield({id:'d-due',label:'Due'+(draft.b2g?' *':''),type:'date',value:draft.dueDateMillis?toInputDate(draft.dueDateMillis):'',iconRight:Icon.calendar})}
+      ${mfield({id:'d-date',label:tr('Creation'),required:true,type:'date',value:toInputDate(draft.creationDateMillis),iconRight:Icon.calendar})}
+      ${mfield({id:'d-due',label:tr('Due')+(draft.b2g?' *':''),type:'date',value:draft.dueDateMillis?toInputDate(draft.dueDateMillis):'',iconRight:Icon.calendar})}
     </div>
     <div class="two">
-      ${mfield({id:'f-adv',label:'Advance',type:'number',value:draft.advancePayment,prefix:cur,attrs:Number(draft.advancePayment)?'':'data-zero="1"'})}
-      ${mfield({id:'f-disc',label:'Discount',type:'number',value:draft.discountPercent,attrs:Number(draft.discountPercent)?'':'data-zero="1"'})}
+      ${mfield({id:'f-adv',label:tr('Advance'),type:'number',value:draft.advancePayment,prefix:cur,attrs:Number(draft.advancePayment)?'':'data-zero="1"'})}
+      ${mfield({id:'f-disc',label:tr('Discount'),type:'number',value:draft.discountPercent,attrs:Number(draft.discountPercent)?'':'data-zero="1"'})}
     </div>
 
-    <h3 class="section-h">${isQ?'Quotation':'Invoice'} Items</h3>
-    <div class="section-sub" id="item-count">${draft.items.length}/20 items</div>
+    <h3 class="section-h">${isQ?tr('Quotation Items'):tr('Invoice Items')}</h3>
+    <div class="section-sub" id="item-count">${draft.items.length}/20 ${tr('items')}</div>
     <div id="items"></div>
 
     <div class="two" style="margin-top:18px">
-      <button class="btn" id="add-item">Add Item</button>
+      <button class="btn" id="add-item">${tr('Add Item')}</button>
       <button class="btn" id="pdf-btn" ${draft.items.length?'':'disabled'}>PDF</button>
     </div>
 
     <div id="item-modal" class="modal-overlay hidden">
       <div class="modal">
-        <h3 style="margin:0 0 14px">Add New Item</h3>
-        ${mfield({id:'m-desc',label:'Description',onCard:true})}
+        <h3 style="margin:0 0 14px">${tr('Add New Item')}</h3>
+        ${mfield({id:'m-desc',label:tr('Description'),onCard:true})}
         <div class="two">
-          ${mfield({id:'m-qty',label:'Quantity',type:'number',onCard:true})}
-          ${mfield({id:'m-price',label:'Price',type:'number',onCard:true})}
+          ${mfield({id:'m-qty',label:tr('Quantity'),type:'number',onCard:true})}
+          ${mfield({id:'m-price',label:tr('Price'),type:'number',onCard:true})}
         </div>
         <div class="two" style="margin-top:14px">
-          <button class="btn ghost" id="m-cancel">Cancel</button>
-          <button class="btn" id="m-save">Add</button>
+          <button class="btn ghost" id="m-cancel">${tr('Cancel')}</button>
+          <button class="btn" id="m-save">${tr('Add')}</button>
         </div>
       </div>
     </div>
 
     <div id="pdf-modal" class="modal-overlay hidden">
       <div class="modal">
-        <h3 style="margin:0 0 14px">Select Invoice PDF Style</h3>
+        <h3 style="margin:0 0 14px">${tr('Select Invoice PDF Style')}</h3>
         <div id="style-list">
           ${PDF_STYLES.map(s=>`
             <div class="style-card ${draft.pdfStyle===s?'on':''}" data-style="${s}">
               <img src="pdfsamples/${s.toLowerCase()}.png" alt="${s}">
-              <span class="rad"></span><span class="nm">${s}</span>
+              <span class="rad"></span><span class="nm">${tr(s)}</span>
             </div>`).join('')}
         </div>
         <div class="two" style="margin-top:14px">
-          <button class="btn ghost" id="pdf-cancel">Cancel</button>
-          <button class="btn" id="pdf-gen">Generate &amp; View PDF</button>
+          <button class="btn ghost" id="pdf-cancel">${tr('Cancel')}</button>
+          <button class="btn" id="pdf-gen">${tr('Generate & View PDF')}</button>
         </div>
       </div>
     </div>
@@ -155,8 +146,28 @@ function summaryInner(){
   const advance = Number(draft.advancePayment)||0;
   const prefix = draft.type==='quotation' ? 'Q' : 'N';
   const num = String(draft.invoiceNumber).replace(/^[NQ]/,'');
+  // With more than one tax number, show a colourful label right under the number (in the
+  // tax number's own colour) that opens a picker — exactly like the Android app.
+  const taxOpts = Array.isArray(p.taxNumbers) ? p.taxNumbers.filter(x=>(x.number||'').trim()) : [];
+  let taxLabel = '';
+  if(taxOpts.length > 1){
+    const idx = Math.min(Math.max(draft.selectedTaxIndex||0, 0), taxOpts.length-1);
+    const sel = taxOpts[idx];
+    const color = sel.color || '#2D9132';
+    const label = (sel.label||'').trim() || 'Tax Number';
+    taxLabel = `
+      <div class="taxpick">
+        <span id="tax-label" style="color:${esc(color)}">${esc(label)} ▾</span>
+        <select id="tax-select" aria-label="Tax number for this document">
+          ${taxOpts.map((x,i)=>`<option value="${i}" ${i===idx?'selected':''}>${esc((x.label||'Tax Number')+' — '+x.number)}</option>`).join('')}
+        </select>
+      </div>`;
+  }
   return `
-    <div class="no">${prefix}°${esc(num)}</div>
+    <div class="no-wrap">
+      <div class="no">${prefix}°${esc(num)}</div>
+      ${taxLabel}
+    </div>
     <div class="tot">
       <div>Subtotal: ${m(t.subtotal)}</div>
       ${draft.taxRatePercentage>0?`<div>${draft.taxRatePercentage}%: ${m(t.taxAmount)}</div>`:''}
@@ -183,8 +194,19 @@ export function mount(ctx){
   $('r-inv').onclick = () => setType('invoice');
   $('r-quo').onclick = () => setType('quotation');
 
-  const taxSel = $('tax-select');
-  if(taxSel) taxSel.addEventListener('change', e => { draft.selectedTaxIndex = parseInt(e.target.value,10)||0; });
+  // Wire the colourful tax-number picker under the number. Re-run after every summary
+  // re-render (the <select> is recreated each time) so selection keeps working.
+  const wireTaxSelect = () => {
+    const sel = $('tax-select'), lab = $('tax-label');
+    if(!sel) return;
+    sel.addEventListener('change', e => {
+      draft.selectedTaxIndex = parseInt(e.target.value,10)||0;
+      const opts = Array.isArray(p.taxNumbers) ? p.taxNumbers.filter(x=>(x.number||'').trim()) : [];
+      const s = opts[draft.selectedTaxIndex];
+      if(s && lab){ lab.textContent = ((s.label||'').trim()||'Tax Number') + ' ▾'; lab.style.color = s.color || '#2D9132'; }
+    });
+  };
+  wireTaxSelect();
 
   $('c-name').addEventListener('input', e => {
     draft.clientName = e.target.value;
@@ -216,7 +238,7 @@ export function mount(ctx){
     // Due / Tax Number / Address become required (get a *) only under B2G — matches Android.
     const star = (id, base) => { const l = document.querySelector(`label[for="${id}"]`); if(l) l.textContent = base + (draft.b2g ? ' *' : ''); };
     star('d-due','Due'); star('c-vat','Tax Number'); star('c-addr','Address');
-    if(draft.b2g && !p.phone) toast('Add a phone number in Profile for B2G');
+    if(draft.b2g && !p.phone) toast(tr('Add a phone number in Profile for B2G'));
   });
 
   // Greyed "0" behaviour for the item Price field (same as Advance/Discount).
@@ -239,7 +261,7 @@ export function mount(ctx){
 
   function bind(id,key){ const el=$(id); if(el) el.addEventListener('input',e=>draft[key]=e.target.value); }
   function numBind(id,key){ const el=$(id); if(el) el.addEventListener('input',e=>{ draft[key]=parseFloat(e.target.value)||0; refreshSummary(); }); }
-  function refreshSummary(){ $('summary').innerHTML = summaryInner(); }
+  function refreshSummary(){ $('summary').innerHTML = summaryInner(); wireTaxSelect(); }
 
   function renderItems(){
     $('item-count').textContent = `${draft.items.length}/20 items`;
@@ -276,7 +298,7 @@ export function mount(ctx){
     // enables the PDF button, but PDF validation (which needs a description) rejects it,
     // producing the confusing "Add at least one item" after items were clearly added.
     const desc = $('m-desc').value.trim();
-    if(!desc){ toast('Add a description for this item'); $('m-desc').focus(); return; }
+    if(!desc){ toast(tr('Add a description for this item')); $('m-desc').focus(); return; }
     const it={ id:uid(), description:desc, quantity:parseFloat($('m-qty').value)||0, unitPrice:parseFloat($('m-price').value)||0 };
     if(editingItem>=0){ it.id=draft.items[editingItem].id; draft.items[editingItem]=it; } else draft.items.push(it);
     closeItem(); renderItems(); refreshSummary(); syncPdfBtn();
@@ -286,15 +308,15 @@ export function mount(ctx){
     $('pdf-modal').classList.remove('hidden');
   }
   function validate(){
-    if(!draft.clientName.trim()){ toast('Client name is required'); return false; }
-    if(draft.clientEmail.trim() && !isEmail(draft.clientEmail)){ toast('Enter a valid client email or leave it empty'); $('warn-cemail')?.classList.remove('hidden'); return false; }
-    if(!draft.items.some(i=>i.description.trim())){ toast('Add at least one item'); return false; }
+    if(!draft.clientName.trim()){ toast(tr('Client name is required')); return false; }
+    if(draft.clientEmail.trim() && !isEmail(draft.clientEmail)){ toast(tr('Enter a valid client email or leave it empty')); $('warn-cemail')?.classList.remove('hidden'); return false; }
+    if(!draft.items.some(i=>i.description.trim())){ toast(tr('Add at least one item')); return false; }
     if(draft.b2g){
-      if(!draft.dueDateMillis){ toast('Due date is required for B2G'); return false; }
-      if(!draft.buyerReference.trim()){ toast('Buyer reference required for B2G'); return false; }
-      if(!draft.clientVatId.trim()){ toast('Client Tax ID required for B2G'); return false; }
-      if(!draft.clientAddress.trim()){ toast('Client address required for B2G'); return false; }
-      if(!p.phone){ toast('Add a phone number in Profile (B2G)'); return false; }
+      if(!draft.dueDateMillis){ toast(tr('Due date is required for B2G')); return false; }
+      if(!draft.buyerReference.trim()){ toast(tr('Buyer reference required for B2G')); return false; }
+      if(!draft.clientVatId.trim()){ toast(tr('Client Tax ID required for B2G')); return false; }
+      if(!draft.clientAddress.trim()){ toast(tr('Client address required for B2G')); return false; }
+      if(!p.phone){ toast(tr('Add a phone number in Profile (B2G)')); return false; }
     }
     return true;
   }
@@ -314,27 +336,65 @@ function generate(ctx){
   let client = findClientByName(draft.clientName);
   if(!client){ client={ id:uid(), name:draft.clientName.trim(), email:draft.clientEmail, clientVatId:draft.clientVatId, address:draft.clientAddress, phoneNumber:draft.clientPhone }; saveClient(client); }
   const t = compute(draft.items, draft.taxRatePercentage, draft.discountPercent, draft.advancePayment);
+  // A generated document is an IMMUTABLE SNAPSHOT: it freezes a full copy of the business
+  // profile, the client, the items AND the computed totals as they are RIGHT NOW. Nothing
+  // here is read live at render time, so changing your profile (name, address, currency,
+  // tax numbers…) later can never alter a document that was already created. Deep-copied
+  // where the source is an object/array so no shared reference can mutate it afterwards.
   const inv = {
     id:draft.id, type:draft.type, invoiceNumber:draft.invoiceNumber.trim(), clientId:client.id,
     clientName:draft.clientName.trim(), clientEmail:draft.clientEmail, clientAddress:draft.clientAddress,
     clientVatId:draft.clientVatId, clientPhone:draft.clientPhone,
     businessName:p.businessName, ownerName:p.ownerName, businessAddress:p.address, businessEmail:p.email,
     businessWebsite:p.website, businessPhone:p.phone, bankingInformation:p.bankingInformation,
-    footerNotes:draft.footerNotes||p.footerNotes, logoUri:p.logoUri, currency:p.currency, taxNumbers:selectedTaxNumbers(p),
+    footerNotes:draft.footerNotes||p.footerNotes, logoUri:p.logoUri, currency:p.currency,
+    invoiceLanguage:p.invoiceLanguage,   // frozen: the PDF renders in the language chosen at creation
+    taxNumbers:JSON.parse(JSON.stringify(selectedTaxNumbers(p))),
     creationDateMillis:draft.creationDateMillis, dueDateMillis:draft.dueDateMillis,
     items:draft.items.map(({id,description,quantity,unitPrice})=>({id,description,quantity:Number(quantity)||0,unitPrice:Number(unitPrice)||0})),
-    subtotal:t.subtotal, discountPercent:Number(draft.discountPercent)||0, taxRatePercentage:Number(draft.taxRatePercentage)||0,
-    taxAmount:t.taxAmount, advancePayment:Number(draft.advancePayment)||0, grandTotal:t.grandTotal,
+    // Frozen totals — the PDF renders THESE, never a fresh recomputation (see pdf.frozenTotals).
+    subtotal:t.subtotal, discountPercent:Number(draft.discountPercent)||0, discountAmount:t.discountAmount,
+    taxRatePercentage:Number(draft.taxRatePercentage)||0, taxBasis:t.taxBasis, taxAmount:t.taxAmount,
+    advancePayment:Number(draft.advancePayment)||0, grandTotal:t.grandTotal, dueAmount:t.dueAmount,
     status:draft.status, notes:draft.notes, pdfStyle:draft.pdfStyle,
     buyerReference:draft.b2g?draft.buyerReference:'', departmentArea:draft.b2g?draft.departmentArea:'',
   };
-  // Always consume: every generated document is a NEW one and takes the next number.
+  // Save FIRST — only if it succeeds do we consume the number. That way a failed save (e.g.
+  // storage full) never burns a document number or silently loses the document.
+  try {
+    saveInvoice(inv);
+  } catch(err){
+    toast(err && err.code === 'STORAGE_FULL'
+      ? tr('Storage full — your business logo is too large. Open Profile, tap Save (it shrinks the logo), or delete some old documents, then try again.')
+      : tr('Could not save the document — please try again.'));
+    return;
+  }
   consumeNumber(draft.type, draft.invoiceNumber);
-  saveInvoice(inv);
+  const docCount = noteDocumentCreated();   // for the "back up every 5 documents" reminder
   // Web version: no custom in-app viewer. Open the real PDF straight in the browser
   // (its native viewer has Share/Save/Print), then send the app to the matching list so
   // the just-saved document is at the top when the user switches back.
   const how = openInvoicePdf(inv);
-  if(how==='downloaded') toast('PDF saved — open it to share');
+  if(how==='downloaded') toast(tr('PDF saved — open it to share'));
   ctx.navigate(inv.type==='quotation' ? '/quotations' : '/invoices');
+  // Every 5 documents, remind the user to back up (their data lives only on this device).
+  if(docCount > 0 && docCount % 5 === 0) remindBackup(docCount);
+}
+
+// Backup nudge shown after every 5th created document. Body-level overlay so it survives
+// the navigation above.
+function remindBackup(n){
+  if(document.getElementById('backup-remind')) return;
+  const el = document.createElement('div');
+  el.id = 'backup-remind'; el.className = 'modal-overlay';
+  el.innerHTML = `<div class="modal">
+    <h3 style="margin:0 0 8px">${tr('Back up your data')} 🔒</h3>
+    <p class="sync-note" style="margin:0">${tr('Your invoices live only on this device — download a backup so a phone reset or cleared history can never wipe them. Keep it in Drive or email it to yourself.')}</p>
+    <div class="two" style="margin-top:16px">
+      <button class="btn ghost" id="br-later">${tr('Later')}</button>
+      <button class="btn" id="br-now">${tr('Back up now')}</button>
+    </div></div>`;
+  document.body.appendChild(el);
+  el.querySelector('#br-later').onclick = () => el.remove();
+  el.querySelector('#br-now').onclick = () => { downloadBackup(); el.remove(); toast(tr('Backup downloaded')); };
 }

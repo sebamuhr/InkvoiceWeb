@@ -16,10 +16,12 @@
 export const AD_CONFIG = {
   enabled: true,
   // Adsterra 320x50 banner — matches the Android AdSize.BANNER unit.
-  key: '5df1a997b75b756b71ad4dd516f4e5c4',
+  // Registered under the website inkvoiceapp.com (id 5920358). The old key was for the
+  // retired app.elorate.net domain and would not serve on the new one.
+  key: 'c7ac468ffdb4c6428f6faa1ffa6d5048',
   width: 320,
   height: 50,
-  invoke: 'https://www.highperformanceformat.com/5df1a997b75b756b71ad4dd516f4e5c4/invoke.js',
+  invoke: 'https://www.highperformanceformat.com/c7ac468ffdb4c6428f6faa1ffa6d5048/invoke.js',
 };
 
 export function mountAdSlot(container){

@@ -1,6 +1,7 @@
 // ===== Inkvoice — app shell, router, bottom tab bar =====
 import { Icon } from './icons.js';
-import { getProfile } from './store.js';
+import { getProfile, requestPersistentStorage } from './store.js';
+import { t } from './i18n.js';
 import { toast, dialog } from './util.js';
 import * as Home from './views/dashboard.js';
 import * as Create from './views/create.js';
@@ -8,8 +9,8 @@ import * as List from './views/list.js';
 import * as Profile from './views/profile.js';
 import * as Cards from './views/cards.js';
 import * as Landing from './views/landing.js';
-import { initSyncBridge } from './syncbridge.js';
-import * as SyncUI from './syncui.js';
+// Laptop/device sync is SHELVED for the phone-only launch. sync.js / syncbridge.js / syncui.js
+// stay in the repo — re-import and re-wire them (see the gating block below) to bring it back.
 
 const state = { route:'/', key:'' };
 
@@ -27,7 +28,7 @@ export function isProfileValid(){
 }
 const PROFILE_MSG = 'Please fill profile data to create invoices/quotations';
 // Tapping a locked tab: explain, don't navigate (like the Android snackbar).
-window.tabBlocked = () => toast(PROFILE_MSG);
+window.tabBlocked = () => toast(t(PROFILE_MSG));
 // Re-render just the tab bar (e.g. after Save Profile) so gated tabs unlock in place.
 window.refreshTabs = () => { const n = document.querySelector('.tabbar'); if(n) n.outerHTML = tabbar(state.key); };
 
@@ -66,9 +67,9 @@ window.addEventListener('popstate', async () => {
     askingLeave = true;
     history.pushState({}, '', routeToHash(state.route));   // stay on Create while we ask
     const discard = await dialog({
-      title:'Discard changes?',
-      message:'Are you sure you want to leave? All data entered will be lost.',
-      buttons:[{ label:'Cancel', value:false, class:'ghost' }, { label:'Discard', value:true }],
+      title:t('Discard changes?'),
+      message:t('Are you sure you want to leave? All data entered will be lost.'),
+      buttons:[{ label:t('Cancel'), value:false, class:'ghost' }, { label:t('Discard'), value:true }],
     });
     askingLeave = false;
     if(discard){ leaveConfirmed = true; history.back(); }
@@ -104,10 +105,10 @@ function tabbar(active){
   };
   return `
     <nav class="tabbar">
-      ${tab('profile','/profile',Icon.user,'Profile',false)}
-      ${tab('create','/create',Icon.plusCircle,'Create',true)}
-      ${tab('invoices','/invoices',Icon.list,'Invoices',true)}
-      ${tab('cards','/cards',Icon.bizcard,'Biz Card',true)}
+      ${tab('profile','/profile',Icon.user,t('Profile'),false)}
+      ${tab('create','/create',Icon.plusCircle,t('Create'),true)}
+      ${tab('invoices','/invoices',Icon.list,t('Invoices'),true)}
+      ${tab('cards','/cards',Icon.bizcard,t('Biz Card'),true)}
     </nav>`;
 }
 
@@ -115,7 +116,7 @@ function render(){
   let { path, params } = parse(state.route);
   // Safety net: a gated route reached while the profile is incomplete → send to Profile.
   if(isGatedPath(path) && !isProfileValid()){
-    toast(PROFILE_MSG);
+    toast(t(PROFILE_MSG));
     state.route = '/profile'; path = '/profile'; params = new URLSearchParams();
     history.replaceState({}, '', routeToHash('/profile'));   // keep the URL/hash honest after the redirect
   }
@@ -129,7 +130,12 @@ function render(){
   const showBack = !isHome;
   app.classList.toggle('with-back', showBack);
   const back = showBack ? `<button class="backhome" onclick="goBack()" aria-label="Back">${Icon.back}</button>` : '';
-  app.innerHTML = back + `<div class="fade">${match.view.html(ctx)}</div>` + tabbar(match.key);
+  // Match the real Inkvoice: HIDE the bottom bar on Create and Profile — they're focused,
+  // full-screen forms you leave via the back chevron. (Create also confirms "Discard changes?"
+  // on the way out, via the popstate guard above; Profile leaves without a prompt, like Android.)
+  const showTabbar = !(path === '/create' || path === '/profile');
+  app.classList.toggle('no-tabbar', !showTabbar);
+  app.innerHTML = back + `<div class="fade">${match.view.html(ctx)}</div>` + (showTabbar ? tabbar(match.key) : '');
   if(match.view.mount) match.view.mount(ctx);
 }
 
@@ -143,16 +149,6 @@ function startApp(){
   if(initial !== '/') history.pushState({}, '', routeToHash(initial));
   render();
 }
-
-// Device sync: apply changes from a connected peer and refresh the screen —
-// but never repaint a screen the user is actively filling in (Create/Profile),
-// which would wipe their in-progress work.
-function rerenderLive(){
-  const path = state.route.split('?')[0];
-  if(path==='/create' || path==='/profile') return;
-  render();
-}
-initSyncBridge(rerenderLive);
 
 // Material field focus highlight + live char counters (delegated, once)
 document.addEventListener('focusin', e => {
@@ -184,45 +180,39 @@ if('serviceWorker' in navigator){
   });
 }
 
-// Inkvoice is a phone app. Data lives only on the device (no cloud sync yet), so running
-// it on a desktop/tablet would create a stranded, unsyncable copy. We therefore gate by
-// device: the full app runs only when installed (standalone) AND on a phone-sized touch
-// screen. Big screens get a "use your phone" notice; a phone browser gets the install page.
+// Inkvoice is a phone/tablet app. All data lives only on the device (fully offline, no cloud,
+// no cross-device sharing). The full app runs when it's been INSTALLED to the home screen
+// (standalone display mode); a plain browser tab gets the install/welcome page instead.
 // `?app` forces the app in any browser, for previewing/screenshots.
 const FORCE = new URLSearchParams(location.search).has('app');
-// Manual override: if the user tapped "This is my phone" we always run as the host.
-let FORCE_PHONE = localStorage.getItem('inkvoice_force_phone') === '1';
 const STANDALONE = window.matchMedia('(display-mode: standalone)').matches
   || window.navigator.standalone === true;
-// Phone detection, belt and braces. A REAL PHONE MUST NEVER BOOT AS A GUEST —
-// a guest phone can't host, so the laptop's code/Accept flow silently breaks.
-//  1) UA: every Android/iPhone browser says so in its user agent. This works even
-//     when the viewport heuristic fails (large phones, font scaling, etc.).
-//  2) Viewport: coarse pointer + small CSS viewport (NOT screen.width — physical
-//     px misclassified real phones).
-// And the mirror rule: a NO-touch, non-mobile device can never be the phone — a
-// stray "This is my phone" tap on a laptop is a mistake; drop the flag so the
-// laptop heals back to its connect screen on the next load.
-const UA_PHONE = /iPhone|iPod|Android[^)]*Mobile|Mobile[^)]*Android/i.test(navigator.userAgent);
-const TOUCH = navigator.maxTouchPoints > 0 || window.matchMedia('(pointer: coarse)').matches;
-if (FORCE_PHONE && !TOUCH && !UA_PHONE) { localStorage.removeItem('inkvoice_force_phone'); FORCE_PHONE = false; }
-const vmin = Math.min(window.innerWidth || 9999, window.innerHeight || 9999);
-const IS_PHONE = UA_PHONE || (TOUCH && vmin <= 560);
+
+// Anonymous install counter: the FIRST time the app runs after being installed (standalone),
+// fire ONE tiny beacon to installed.txt, then remember we did (so it counts once per device,
+// not per open). Nothing personal is sent — the server just logs a hit. Count lines containing
+// "installed.txt" in the Hostinger access log = number of installs. `?app` previews (not
+// standalone) never count. Best-effort: offline installs simply log on the first online open.
+function pingInstallOnce(){
+  try{
+    const REAL = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+    if(!REAL || localStorage.getItem('inkvoice_install_pinged')) return;
+    localStorage.setItem('inkvoice_install_pinged','1');
+    fetch('installed.txt?ts=' + Date.now(), { cache:'no-store', keepalive:true }).catch(()=>{});
+  }catch{}
+}
 
 const appEl = document.getElementById('app');
-if(FORCE || FORCE_PHONE || (STANDALONE && IS_PHONE)){
-  // Phone (the boss), INSTALLED → full offline app + can host a device connection.
-  SyncUI.initSyncUI({ role:'phone' });
+if(FORCE || STANDALONE){
+  // Installed as a PWA (phone OR tablet) → the full offline app. Each install is its own
+  // independent, on-device copy — devices never share data. We gate on "installed"
+  // (standalone) rather than screen size so tablets work too. Ask the browser to keep our
+  // storage persistent so the invoices aren't auto-evicted.
+  requestPersistentStorage();
+  pingInstallOnce();
   startApp();
-} else if(!IS_PHONE){
-  // Desktop or laptop: not an independent copy — it connects to the phone over
-  // the same Wi-Fi and mirrors it live. Show the connect screen; boot the full
-  // app once paired, and return here if the link drops.
-  SyncUI.initSyncUI({ role:'guest', bootApp:startApp, appEl });
-  SyncUI.mountGuestStart(appEl);   // silent reconnect if we've paired before, else the code screen
 } else {
-  // Phone browser, NOT yet installed → show the Add-to-Home-Screen page so the
-  // user installs it first and it runs fully offline. (Installing it makes it
-  // standalone, which the branch above then boots as the phone/boss.)
+  // Opened in a normal browser tab (not installed) → the install / welcome page, which tells
+  // the visitor to add Inkvoice to their phone or tablet home screen.
   appEl.innerHTML = Landing.html();
 }

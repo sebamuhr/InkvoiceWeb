@@ -9,7 +9,56 @@
 
 ## 🔴 ACTIVE ISSUE — PWA home-screen icon on Android (READ THIS FIRST)
 
-**Latest build: v55** (`_upload/inkvoice-app-COMPLETE-v55.zip`, INCLUDES `.htaccess`) —
+**Latest build: v67** (`_upload/inkvoice-app-COMPLETE-v67.zip`, INCLUDES `.htaccess`) — **German PDF
+"Zwischensumme" crop fix**: split the shared `Subtotal` key so the line-item column header is now
+`Amount` (Betrag / Importe / Montant) and the totals label is `Summe` (DE). See v67 changelog. On:
+
+**v66** — **APP LANGUAGE (i18n)** across the main screens (EN/DE/ES/FR), reusing the Android app's real
+translations. INVOICE PDF-output language is still TODO. See v66 changelog. Builds on:
+
+**v65** — splash logo no longer clipped (shrank the "any" icons to 60%, home-screen icons untouched)
++ Adsterra key for inkvoiceapp.com + SEO'd (hidden) marketing page + noindex. And:
+
+**v64** — **CRITICAL fixes:** the "can't create more than 4 invoices" data-loss bug (logo bloat filled
+localStorage + number-burn), PDF opening about:blank (noopener), ads (were blocked by the 4-doc cap).
+Builds on:
+
+**v63** — bigger Android home-screen icon (maskable disc 59%→66%, icon `?v=58`→`?v=63`). And:
+
+**v62 — ONE-DOMAIN + phone/tablet.** The app now lives under the MAIN domain at **inkvoiceapp.com/app** (retire the
+`app.inkvoiceapp.com` subdomain + `app.elorate.net`); the marketing welcome page stays at the root
+`inkvoiceapp.com/`. Gating simplified to "installed (standalone) OR `?app` → run the app; else the
+install page" so **tablets** work too (was phone-size-only). All app paths are relative → works at
+any subpath (verified at `/app`). Builds on v61 (phone-only, laptop sync shelved). Carries the v58
+icon fix. On-screen version on Profile ("Inkvoice v62").
+
+**Prior: v61** = phone-only launch build: laptop/device sync SHELVED (removed the "Connect a device"
+button, 6-digit code screen, guest/desktop connect path, all sync wiring). sync.js/syncbridge.js/
+syncui.js remain in the repo, just not wired in (see app.js to revive).
+
+> ⚠️ **DEPLOY REALITY CHECK (2026-07-12):** the live server was found running **v57** — **v58
+> was built but NEVER uploaded** (the recurring "icon still broken" cause). The fix is only live
+> once the bundle actually lands. After uploading v59, VERIFY from a terminal BEFORE trusting it:
+> `curl -s https://app.inkvoiceapp.com/js/sync.js | grep APP_VERSION` → must say **v59**;
+> `curl -s https://app.inkvoiceapp.com/manifest.json | grep maskable` → must say **?v=58**.
+> If they don't, the extract didn't overwrite (Hostinger sometimes unzips into a subfolder).
+
+**Prior build: v58** (`_upload/inkvoice-app-COMPLETE-v58.zip`, INCLUDES `.htaccess`) —
+maskable icon safe-zone fix (Firefox no longer crops the icon shape); icon query bumped
+`?v=54`→`?v=58`. Carries v57 (sync terminal), v56 (immutability), v55, v54.
+**v58 was never deployed — folded into v59.**
+
+**Prior build: v57** (`_upload/inkvoice-app-COMPLETE-v57.zip`, INCLUDES `.htaccess`) —
+device-sync model fix: the laptop is now an EPHEMERAL TERMINAL that wipes its data on
+disconnect so it can never overwrite the phone (the boss/only store). See v57 changelog +
+memory `sync-model`. Carries v56 (immutability), v55 (numbering/tax/date), v54 (icon).
+
+**Prior build: v56** (`_upload/inkvoice-app-COMPLETE-v56.zip`, INCLUDES `.htaccess`) —
+invoice/quotation IMMUTABILITY hardening (frozen totals + list currency leak fix); see v56
+changelog and memory `invoice-immutability`. Carries v55 (numbering/tax/date) and the v54
+icon fix (icons + `?v=54` unchanged).
+
+**Prior build: v55** (`_upload/inkvoice-app-COMPLETE-v55.zip`, INCLUDES `.htaccess`) —
 numbering + tax-picker + date-field fixes (see v55 changelog). Carries the v54 icon fix
 (icons + `?v=54` unchanged in v55). See prior note below for the v54 icon details.
 
@@ -264,9 +313,9 @@ local icon cache is poisoned** — v37 busts it with NEW icon URLs. Awaiting con
 | **This app (only thing we modify)** | `/home/sebastian/Documents/APPS/InkvoiceWeb` |
 | **Android reference — READ ONLY, never modify** | `/home/sebastian/Documents/APPS/Inkvoice` (Kotlin/Compose) |
 | **Git** | remote `origin` → `https://github.com/sebamuhr/InkvoiceWeb.git`, branch **`main`** |
-| **Hosting — app (primary)** | **Hostinger** → **https://app.inkvoiceapp.com** (repo-root files in `public_html/app/`). Manual upload. |
-| **Hosting — marketing site** | **Hostinger** → **https://inkvoiceapp.com** (`site/` contents in `public_html/`). Manual upload. |
-| **Hosting — app (legacy)** | GitHub Pages → **https://app.elorate.net** (kept for existing installs; fed by `git push`) |
+| **Hosting — app (primary)** | **Hostinger** → **https://inkvoiceapp.com/app** (repo-root files in `public_html/app/`). Manual upload. **(v62: the `app.inkvoiceapp.com` subdomain is retired — one domain now.)** |
+| **Hosting — marketing site** | **Hostinger** → **https://inkvoiceapp.com** (welcome page; `site/` contents in `public_html/`). Its "Get the app / Install" links point to `/app`. Manual upload. |
+| **Hosting — app (legacy)** | GitHub Pages → **https://app.elorate.net** — being retired (v62). |
 | **Run locally** | `cd InkvoiceWeb && python3 -m http.server 8000` → http://localhost:8000 (app) · `/site/` (marketing) |
 | **GitHub identity** | user `sebamuhr`, email `muhrmuhr@gmail.com` |
 
@@ -444,6 +493,351 @@ chevron clears content.
 ---
 
 ## 9. Changelog (newest first)
+
+### 2026-07-25 — v67: German PDF "Zwischensumme" crop fix (label split)
+The German line-item column header ("Zwischensumme") was too wide and cropped off the right edge in
+some PDF styles. Root cause: one shared `Subtotal` i18n key drove BOTH the per-row column header and
+the totals-block label, so German rendered the long word in both spots — and the header (left-aligned
+near the page edge, wider than the money values below it) overran the margin.
+- **`js/i18n.js`** — split the concept. DE `Subtotal` → **"Summe"** (was "Zwischensumme"); added
+  **`Amount`** key: DE **"Betrag"**, ES **"Importe"**, FR **"Montant"**.
+- **`js/pdf.js`** — the 4 line-item column headers (all styles) now call `PL('Amount')`; the 4
+  totals-block labels keep `PL('Subtotal')`. Totals label is right-aligned so it never cropped.
+- Semantics improved: the per-row column is an *amount* (Betrag/Importe/Montant), not a subtotal.
+- Verified: `node --check` on both files; translation resolution across EN/DE/ES/FR; bundle contents.
+  ES/FR were already correct and are unchanged (their totals stay Subtotal / Sous-total). Not yet
+  pixel-verified in a real PDF (no browser here) — "Betrag" (6 chars) is narrower than the money
+  values already in that column, so it cannot crop; still worth one on-device eyeball post-deploy.
+- Version bumped v66 → **v67** (`sw.js` CACHE + `js/sync.js` APP_VERSION). Bundle:
+  `_upload/inkvoice-app-COMPLETE-v67.zip` (47 files, same set as v66).
+
+### 2026-07-18 — v66: APP LANGUAGE (i18n) across the main screens (EN/DE/ES/FR)
+Started the language work (the killer differentiator). This is APP language (the UI); INVOICE
+language (translating the PDF OUTPUT) is still TODO — see below.
+- **`js/i18n.js`** — new. `t('English string')` returns the string in the user's App Language
+  (Profile → App Language), falling back to English if untranslated (so wrapping is always safe).
+  The DE/ES/FR maps are the REAL human translations reused from the Android `strings.xml`
+  (values-de/-es/-fr, 192 keys), keyed by the English text. A small `WEB_TR` supplement adds
+  web-only strings (empty states, restore, status Overdue/Cancelled, validation hints…).
+  `currentLang()` maps profile.appLanguage (English/German/Spanish/French) → en/de/es/fr.
+- **Converted to `t()`:** the bottom tab bar (`app.js`), Home (`dashboard.js`), the invoices/
+  quotations list (`list.js` — totals, filter labels [values stay English], radios, doc cards,
+  action dialog, delete confirm), Profile (`profile.js` — every field label + buttons), and Create
+  (`create.js` — radios, client fields, B2G fields, dates, items, item modal, PDF-style modal).
+  create.js imports the translator as `tr` (it already uses `t` locally for compute() totals).
+  Language applies on the next render (Save Profile navigates Home → re-render).
+- **Verified (Playwright):** tabs/list/profile/create all render correctly in DE (and ES/FR spot-
+  checked); English fallback intact; 0 errors, 0 4xx; v66 bundle boots clean. `i18n.js` added to the
+  SW SHELL. **SW → v66 / APP_VERSION v66.** Bundle: `_upload/inkvoice-app-COMPLETE-v66.zip` (47 files).
+- **INVOICE PDF OUTPUT LANGUAGE — DONE (the differentiator!).** The invoice now renders in its OWN
+  frozen `invoiceLanguage`, not the app language. `i18n.t(s, lang)` gained an optional language arg
+  + `langCode()`; `pdf.js` imports it as `tr`, sets `_plang = langCode(inv.invoiceLanguage)` in
+  `buildPdf`, and a `PL(s)` helper translates every label. All ~56 label literals across the 4 styles
+  (Date/Due/From/To/Description/Quantity/Subtotal/Total/Discount/Advance/Balance due/Bank Information/
+  Tax) were wrapped. `create.js generate()` now FREEZES `invoiceLanguage` onto the invoice (immutable).
+  Fixed: 'To' → 'An'/'Para'/'À' (Android's `to`='Bis'/'Hasta' is the date-range word — overridden in
+  WEB_TR); the 'Tax %' label; and LAYOUT — totals labels are now RIGHT-aligned 8pt before the value in
+  all 4 styles so long German/Spanish labels ("Zwischensumme:", "Saldo pendiente:") can't collide with
+  the amount. **Verified (Playwright + pdftoppm):** German invoices in ALL 4 styles render clean
+  (Von:/An:, Steuer, Zwischensumme, Gesamt, Restbetrag, right-aligned, no overflow); English PDF
+  unchanged; 0 errors. Screenshots in scratchpad.
+- **UI strings — now COMPLETE across the app.** Also wrapped + translated: all create.js validation
+  toasts (12), profile.js toasts + restore confirm (11), cards.js (whole screen + share toasts),
+  app.js PROFILE_MSG + discard dialog, taxRows() Label/Number placeholders, the storage-full message,
+  and the backup-reminder modal. New human DE/ES/FR translations for the ~40 web-only strings live in
+  `WEB_TR`/`WEB_TR2`/`WEB_TR3` in i18n.js (merged over the Android map). Verified: full nav across
+  every screen in Spanish = 0 errors; German toasts/cards/dialogs all translate.
+- **STILL TODO (minor):** `landing.js` (the pre-install page — English; no profile yet, so it'd need
+  `navigator.language`); optionally show language names natively in the App/Invoice Language dropdowns
+  (currently English words); a full ES/FR PDF visual spot-check (DE verified in all 4 styles). See
+  memory `i18n-system`.
+
+### 2026-07-18 — v65: splash logo no longer clipped + Adsterra key for inkvoiceapp.com
+- **Startup/splash logo clipped on the edges.** The PWA splash is Chrome-generated from the manifest
+  icon + `background_color`. Chrome uses the **"any"** icons (icon-192/512, teal disc at 76% of a
+  black square) for the splash and applies its icon mask, which clipped the disc edges. User did NOT
+  want the background changed — wanted the LOGO smaller. Fix: shrank the disc in **icon-192 + icon-512
+  to 60%** (re-centered on black → generous margin, mask can't clip it). **Left the home-screen icons
+  untouched** — `maskable-512` stays 66% (Android home) and `apple-touch-icon` stays 78% (iPhone
+  home), so the icons the user liked are unchanged. `background_color` stays `#ffffff` (a brief
+  earlier switch to black was reverted per the user). Icon `?v=63`→`?v=65` (manifest + index).
+- **Adsterra key** updated to the new `inkvoiceapp.com` unit (website id 5920358, key `c7ac468f…`);
+  the old key was for the retired `app.elorate.net`.
+- **PRE-LAUNCH: site hidden from search.** Was fully crawlable (no robots.txt, no noindex, and the
+  marketing page had full SEO meta). Added `<meta name="robots" content="noindex, nofollow">` to BOTH
+  `index.html` (app) and `site/index.html` (marketing). Deliberately NOT using robots.txt Disallow —
+  that lets Google list the bare URL and would BLOCK it from seeing the noindex. noindex keeps it out
+  of the index while testers can still use it. **TO GO LIVE: remove that one meta line from
+  `site/index.html`** (marketing page); the app page (`/app`) can keep noindex permanently.
+- **SEO'd the marketing page (`site/index.html`) while hidden.** Verified both claims are REAL in the
+  flagship Android app before writing copy: `invoiceLanguage` feeds `PdfGenerator.kt`, and
+  `ZugferdGenerator.kt`/`ZugferdValidator.kt` do EN 16931 Factur-X/ZUGFeRD. Changes: new title +
+  meta description + OG + keywords injecting the differentiator & e-invoicing terms; a prominent
+  **"Invoice in your client's language"** band (reuses `.cta-strip`); the generic "Currencies &
+  languages" feature card split into a **language** card + a **B2G/e-invoicing** card (XRechnung /
+  Factur-X / ZUGFeRD / EN 16931, "Available in the Android app"); two new FAQ entries (languages,
+  e-invoicing) for long-tail keywords. Rebuilt `_upload/inkvoice-welcome-site.zip` (still noindexed).
+  ⚠️ **PARITY GAP:** the WEB/iPhone PWA has the invoice-language SELECTOR but doesn't translate output
+  yet (progress §8), and has NO e-invoicing XML. The B2G copy says "Android"; the language copy is
+  product-level. Before un-hiding, either wire web invoice-language output or keep launch
+  Android-primary so iPhone users aren't misled. See memory `prelaunch-seo`.
+- **SW → v65 / APP_VERSION v65.** Bundle: `_upload/inkvoice-app-COMPLETE-v65.zip` (+.htaccess, 46
+  files). Boots 0 errors/0 4xx. NOTE: Android bakes the splash into the installed WebAPK — the user
+  must **reinstall** (remove + re-add) to see the new splash + icon. Marketing page ships separately
+  in `_upload/inkvoice-welcome-site.zip` → `public_html/`.
+
+
+### 2026-07-17 — v64: CRITICAL — "can't create more than 4 invoices" + about:blank + ads
+Wife hit a hard wall at 4 documents (5th wouldn't save, then got stuck burning numbers); PDFs opened
+about:blank on convert; ads not showing.
+- **Bug #1 — max 4 docs (data loss).** ROOT CAUSE: every invoice embeds a full copy of the business
+  **logo as uncompressed base64** (`create.js` `logoUri:p.logoUri`), the logo upload did NO
+  downscaling (up to 2MB file → ~2.7MB base64), and `store.write` had NO quota handling — so
+  localStorage (~5MB) filled after ~4 invoices and the 5th `setItem` threw uncaught. WORSE:
+  `generate()` ran `consumeNumber` BEFORE `saveInvoice`, so a failed save BURNED the number (counter
+  advanced, doc lost → stuck one number ahead, still failing). Reproduced exactly: 1MB logo →
+  **4 saved then STORAGE_FULL**. Fixes: (a) `profile.js shrinkLogo()` downscales the logo to ≤300px
+  on upload AND shrinks an oversized stored logo on Save (PNG for transparency, white-flattened JPEG
+  for big photos) — measured 291KB→57KB, a real 2MB photo → ~50-80KB, so ~50-150 invoices fit now.
+  (b) `saveInvoice` catches the quota error and throws a clean `code:'STORAGE_FULL'`. (c) `generate()`
+  saves FIRST, only consumes the number on success, and on failure shows a clear message + keeps the
+  number available (no burn). (d) `saveProfile` failure is caught in the UI too.
+- **Bug #3 — PDF opens about:blank (esp. on convert / standalone PWA).** `pdf.js openInvoicePdf`
+  used `window.open(url,'_blank','noopener')`; the `noopener` flag makes browsers drop the blob: URL
+  → about:blank. Removed the flag (kept the null→download fallback).
+- **Bug #2 — no ads.** The every-5th-doc ad math is correct (verified: 6 docs → 1 slot). It wasn't
+  showing because of Bug #1 — with only ~4 saved docs no list reaches 6, so the slot never renders.
+  Fixed by #1. On Android the user DID reach 6 but saw only an empty box — that was his ad blocker /
+  Firefox (works in Chrome). Also: the Adsterra ad unit was still keyed to the retired
+  `app.elorate.net`; **updated `ads.js` key+invoke to the new `inkvoiceapp.com` unit** (website id
+  5920358, key `c7ac468f…`). Ads only FILL once that Adsterra site is Approved + loaded from the
+  live domain with no ad blocker.
+- **Existing stuck data:** the wife's 4 already-saved invoices still hold big logos, so storage stays
+  near-full until she re-saves her Profile (shrinks the profile logo) AND deletes the old test
+  invoices (or clears app data) — it's throwaway test data.
+- Verified (Playwright): compression drop; quota → clean STORAGE_FULL at 4; number not burned; ad
+  slot at 6; no noopener; v64 boots 0 errors/0 4xx. **SW → v64 / APP_VERSION v64.** Bundle:
+  `_upload/inkvoice-app-COMPLETE-v64.zip` (+.htaccess, 46 files). Icons + `?v=63` UNCHANGED.
+
+
+### 2026-07-17 — v63: also — hide bottom bar on Create & Profile (match real Inkvoice)
+Checked the Android app (`MainActivity.kt` bottomBar: shown EXCEPT on Profile, Create, privacy;
+`CreateInvoiceScreen.kt:721` BackHandler → unconditional "Discard changes?" dialog;
+`ProfileScreen.kt:181` BackHandler → just navigates Home, NO confirm). Web now matches:
+- `app.js render()` hides `tabbar()` on `/create` and `/profile` (adds `#app.no-tabbar`, CSS trims
+  the reserved bottom padding). Shown on Home/Invoices/Quotations/Biz Card.
+- **Create** already had (and keeps) the popstate "Discard changes?" guard → confirms on back.
+  **Profile** leaves without a prompt (Save Profile persists + navigates Home; logo auto-saves) —
+  exactly like Android. NOTE: user asked for confirm on BOTH; the real app only confirms on Create,
+  so we matched the real app. Offered to add a Profile confirm (needs dirty-tracking to avoid
+  prompting when nothing changed) if they want to deviate.
+- Verified (Playwright): bar hidden on Create/Profile, shown elsewhere; Create back → dialog;
+  Profile back → no dialog, goes Home; 0 errors. Folded into the v63 bundle.
+
+### 2026-07-17 — v63: bigger Android home-screen icon (maskable disc 59%→66%)
+User: the installed web icon looked smaller than the original Android app icon. Measured (teal disc
+as % of canvas): original Android ~69% (legacy) / 77% (playstore); web `any`/apple-touch 76-78%
+(iPhone — already matches); web **maskable 59%** — the one Android uses for installed PWAs, too
+small. v58 had shrunk it to 59% to stop Firefox cropping; that overshot.
+- Regenerated `icons/maskable-512.png` from `icon-512.png` scaled so the teal disc is **66%** of the
+  512 canvas on opaque black — bigger, closer to the original, still inside the maskable safe zone
+  (even with Firefox's ~1.15× adaptive zoom, 66%×1.15≈76% < 80% guaranteed-visible circle → not
+  cropped). `any` icons (icon-192/512) + apple-touch UNCHANGED (iPhone already matched).
+- Bumped the icon cache-buster **`?v=58`→`?v=63`** in manifest.json + index.html so devices re-mint
+  the icon. Per ICON POLICY, users remove+re-add the home-screen icon ONCE to pick it up.
+- **Install signal (two parts):** (1) manifest `start_url` → `./?source=homescreen` so home-screen
+  OPENS are distinguishable from browser visits in the logs. (2) **Anonymous install COUNTER** —
+  `app.js pingInstallOnce()` fires ONE beacon to `installed.txt` the first time the app runs
+  standalone, then sets `localStorage inkvoice_install_pinged` so it counts once PER DEVICE, not per
+  open. `?app` previews (not standalone) never count. Nothing personal is sent. **Count installs =
+  number of `/app/installed.txt` hits in the Hostinger access log.** Added 1-byte `installed.txt` to
+  the app root (46 files now). Verified: 1 ping on first standalone load, 0 on reload, 0 for `?app`.
+- **SW → v63 / APP_VERSION v63.** Bundle: `_upload/inkvoice-app-COMPLETE-v63.zip` (+.htaccess, 45
+  files). Boots 0 pageerrors, all icon URLs 200. See memory `pwa-icon-root-cause`.
+
+### 2026-07-17 — v62: one domain (app under inkvoiceapp.com/app) + tablet support
+User: since laptop sync is gone, we don't need the `app.` subdomain — make it one domain. Keep
+`inkvoiceapp.com` as the nice welcome page; the app moves under it. Phone OR tablet, no device
+sharing.
+- **One domain.** The app now lives at **inkvoiceapp.com/app** (files already sit in
+  `public_html/app/`, so this is just dropping the `app.inkvoiceapp.com` subdomain alias). The
+  marketing welcome page stays at the root. The app is fully relative (`manifest` scope `./`), so it
+  works at any subpath — verified serving it under `/app` (manifest scoped to `/app/`, 0 errors).
+- **Links repointed.** `site/index.html` "Get the app / Install" CTAs now go to `/app` (was
+  `https://app.inkvoiceapp.com`); the app's own install page (`landing.js`) says
+  `inkvoiceapp.com/app`. No `app.` subdomain refs remain in shipping code.
+- **Tablet support + simpler gating (`app.js`).** Dropped the phone-size/UA sniffing (it was for the
+  old sync role detection). New rule: **installed (standalone) OR `?app` → run the app; otherwise →
+  the install/welcome page.** So an installed PWA runs on a phone OR a tablet (any size) — verified
+  a standalone large/tablet viewport boots the full app, a plain browser tab gets the install page.
+- Retiring `app.elorate.net` (legacy GitHub Pages) and the (already-unused) `signal.php`.
+- **Verified (Playwright):** app boots at `/app` subpath (tablet viewport) with tab bar + 0 errors;
+  standalone large screen → full app; packaged bundle clean. **SW → v62 / APP_VERSION v62.** Bundle:
+  `_upload/inkvoice-app-COMPLETE-v62.zip` (+.htaccess, 45 files). Icons + `?v=58` UNCHANGED.
+  **Deploy:** app zip → `public_html/app/`; updated `site/` → `public_html/`; then remove the
+  `app.inkvoiceapp.com` subdomain in Hostinger (or leave it as a harmless alias).
+
+### 2026-07-17 — v61: PHONE-ONLY launch — laptop connection shelved
+User: the laptop connection "just does not work" and blocks launch — strip it for now, ship
+phone-only (same as the real Inkvoice), revisit sync in a later update. "We need to launch soon so
+we can start making money."
+- **Removed the entry points, kept the code.** `app.js`: dropped the `initSyncUI`/`initSyncBridge`
+  imports + calls, the `rerenderLive` bridge hook, and the `__route`/`__syncOnNav` nav hook. Gating
+  is now 2-way: installed phone (or `?app`/force) → the app; **everything else → the Landing/install
+  page** (the old desktop `role:'guest'` 6-digit connect screen is gone). `profile.js`: removed the
+  "Connect a device" button, its description, the Unpair and Connection-diagnostics buttons, and
+  their handlers. `sync.js`/`syncbridge.js`/`syncui.js` are untouched and remain in the repo +
+  `sw.js` SHELL — re-add the app.js imports/calls to bring sync back.
+- **No more data-wipe risk:** the guest path (`mountGuestStart`→`guestForgetAll`→`wipeLocalData`) is
+  never reached now, and the phone never receives snapshots/ops. The v60 boss-protection guards stay
+  in `syncbridge.js` for when sync returns.
+- **On-screen version** moved to a plain "Inkvoice v61" line at the bottom of Profile (imports just
+  `APP_VERSION` from sync.js — no connection code runs) so deploys can still be verified at a glance.
+- **Verified (Playwright):** `?app` boots the full app with NO connect/reconnect/diag buttons and no
+  6-digit screen, version "v61" shown; desktop (no `?app`) shows the install page, no sync globals;
+  packaged bundle boots 0 pageerrors / 0 4xx. **SW → v61 / APP_VERSION v61.** Bundle:
+  `_upload/inkvoice-app-COMPLETE-v61.zip` (+.htaccess, 45 files). Icons + `?v=58` UNCHANGED.
+
+### 2026-07-13 — v60: CRITICAL — the phone (boss) can no longer be reverted by a peer
+User (furious): "when I update, my wife's app goes back to the old version — old invoices, old logo,
+old numbers… information that shouldn't even be saved." Watched it revert live on update.
+- **Root cause (found by exhaustive search):** `syncbridge.js` applied an incoming `snapshot`
+  (and any `op`) with **NO role check** — "phone is boss" was only a convention (the SENDER checks
+  `role==='host'`; the RECEIVER applied blindly). A single `snapshot` REPLACES the whole dataset
+  (invoices + profile/logo + numbers + card) at once — which is exactly the all-at-once revert the
+  user saw. Trigger: the app auto-reloads on deploy (`sw.js skipWaiting` + `app.js`
+  `controllerchange → location.reload()` = "it updates in front of my eyes"); during that
+  reload/reconnect churn a laptop running old/stale cached code (Firefox caches the SW hard) sends a
+  snapshot, and the phone applied it → reverted to the laptop's stale copy. No IndexedDB/migration/
+  seed involved (ruled out) — the ONLY wholesale-overwrite path is `applySnapshot`.
+- **Fix (`syncbridge.js`):** enforce boss-ness at the APPLY layer.
+  - Incoming `snapshot` is applied ONLY when `Sync.role === 'guest'` (the laptop mirroring the
+    phone). The HOST/phone NEVER accepts a snapshot — its data can only be replaced by itself.
+  - Incoming `profile`/`card` ops are IGNORED on the host (logo, business name, currency, numbers,
+    branding belong to the phone). `invoice`/`client` ops STILL flow up, so the laptop can create
+    documents while connected. The phone's numbering floors on its own saved invoices
+    (`maxUsedNumber`), so it stays correct without the guest's counter/profile op.
+  - Ignored messages are logged to the on-device diagnostics ("IGNORED incoming snapshot …").
+- **Verified (Playwright, `boss.mjs`):** as host, an incoming snapshot AND a profile op leave the
+  phone's NEW name/logo untouched, while an invoice op is still accepted (+1); as guest, a snapshot
+  is applied (mirror). **SW → v60 / APP_VERSION v60.** Bundle:
+  `_upload/inkvoice-app-COMPLETE-v60.zip` (+.htaccess, 45 files). Icons + `?v=58` UNCHANGED.
+  ⚠️ Both devices must reach v60 — especially the wife's LAPTOP (Firefox caches the old SW; hard-
+  refresh it) — for the guard to take effect on the sending side too. See memory `sync-model`.
+
+### 2026-07-12 → 07-13 — v59: sync reconnect UX, data safety, tax label, deploy discovery
+A batch of user-driven fixes. **SW → v59 / APP_VERSION v59.** Bundle:
+`_upload/inkvoice-app-COMPLETE-v59.zip` (+.htaccess, 45 files). Icons + `?v=58` UNCHANGED (carries
+the v58 maskable fix). Boots 0 pageerrors, all assets 200. **Supersedes the never-deployed v58.**
+- **DEPLOY DISCOVERY:** the live server was running v57 — v58 was built but never uploaded. That
+  is the real reason the icon "kept breaking": the fix was never on the server. Live-verify curls
+  added to the top note. No code fix — a process fix (actually upload + verify the version).
+- **Laptop tab-switch grace (`syncui.js`).** The `visibilitychange` handler dropped the link the
+  instant the tab was hidden — so switching tabs, or opening a generated PDF in a new tab (which
+  backgrounds the app tab), disconnected the laptop. Now: the PHONE still drops instantly (its OS
+  suspends the PWA on screen-off), but the GUEST keeps the live link for a **3-minute grace window**
+  (`GUEST_HIDDEN_GRACE_MS`) and only drops if you stay away past it. Coming back cancels the drop.
+- **Multi-phone selector (`syncui.js`) — the "reverts to last saved version" root cause.** In a 2+
+  phone household (Oppo + iPhone) the laptop stored ONE phone's key and auto-reconnected/cross-wired
+  to the WRONG phone, pulling its snapshot. NOT version drift (both fresh v58). Fix: the laptop now
+  remembers a LIST of phones (`localStorage inkvoice_phones` = `[{key,name}]`; old single PAIR_KEY
+  migrates in); `mountPhonePicker()` shows a "Which phone?" SELECTOR; you pick which phone to
+  reconnect to (name from the snapshot profile). A NEW phone still needs its code + Accept (security
+  kept). On disconnect the laptop wipes its DATA but KEEPS the phone list (easy reconnect). Guest
+  `onMessage` saves `{key,name}` on connect. See memory `sync-model` (do NOT make it stateless again
+  — an earlier "always type the code" attempt was rejected).
+- **Data safety (`store.js`, `app.js`, `profile.js`, `create.js`) — "if I clear Firefox I lose
+  everything?"** (1) `requestPersistentStorage()` (`navigator.storage.persist()`) on phone boot so
+  the browser won't auto-evict the data. (2) **Restore was MISSING** — Backup Now downloaded a JSON
+  that could never be loaded back. Added `importBackup()` + a **"Restore from a backup file"** button
+  in Profile (validates the file, confirm before replacing, reloads). Backup now also includes the
+  card colour + a dated filename. (3) **Backup reminder every 5 documents** — `noteDocumentCreated()`
+  counts docs since last backup; `create.js` shows a "Back up your data 🔒" modal at 5/10/15…; a
+  backup (or restore) resets the counter. Verified: reminder fires at 5 & 10, restore round-trips,
+  junk files rejected.
+- **Colourful tax label under the number (`create.js`, `styles.css`).** When the profile has >1 tax
+  number, a coloured label (the tax number's label in its own colour + ▾) now sits directly under
+  the invoice/quotation number in the summary card and opens a picker — matches Android
+  `CreateInvoiceScreen.kt` (lines ~779-890). Replaced the old plain dropdown-below-the-card. The
+  selected number still prints on the PDF. 0/1 tax numbers → nothing extra.
+- **Reconnect button only on Profile (`app.js`, `syncui.js`).** The floating "🔗 Reconnect my
+  laptop" button was showing on every screen. The router now sets `window.__route` + calls
+  `window.__syncOnNav`; `renderPhoneReconnectBtn()` only shows when `window.__route === '/profile'`.
+- Verified (Playwright): tax label colour swaps on pick; reconnect btn shows only on Profile
+  (Create/Invoices hidden); data-safety suite green; v59 bundle boots 0 pageerrors / 0 4xx.
+
+
+### 2026-07-12 — v58: maskable icon safe-zone fix (Firefox stops cropping the shape)
+User: the Firefox home-screen icon is slightly bigger than the correct one and the outer shape
+is cropped. Cause: `maskable-512.png` was IDENTICAL to the `any` icon — a teal disc filling
+~80% of the canvas. Firefox/Android treat maskable icons as adaptive icons and zoom them ~1.15×
+to fill, cropping the outer ~10-18% → it ate the disc/shape edge. Fix: regenerated
+`maskable-512.png` (Pillow) with the disc shrunk to ~59% of the 512 canvas, centered on full
+black, so it sits inside the adaptive safe zone (~66%) and can't be cropped. The `any` icons
+(icon-192/512) are UNCHANGED (they render correctly). Icon query bumped `?v=54`→`?v=58` in
+manifest + index to force a clean re-mint. **SW → v58 / APP_VERSION v58.** Bundle:
+`_upload/inkvoice-app-COMPLETE-v58.zip` (+.htaccess). Boots 0 pageerrors; all icon URLs 200
+image/png. See memory `pwa-icon-root-cause` (maskable safe-zone note).
+
+### 2026-07-12 — v57: sync = phone is boss, laptop is an ephemeral terminal
+User report: batch B (invoices the wife recreated after her data was evicted) vanished after
+reconnecting a laptop that still held the old batch A; also her profile "got deleted." Root
+cause: the laptop PERSISTED its own copy and could push stale data to the phone (and every
+laptop invoice generation pushed the laptop's WHOLE profile via the counter bump, overwriting
+the phone's). User's required model: the PHONE is the single source of truth; the laptop is
+ONLY a bigger screen to write on, not a second copy.
+- **New model:** while connected, share EVERYTHING both ways (unchanged — the phone saves it
+  all live). The safety comes from the laptop being EPHEMERAL: it holds no data of its own and
+  **wipes all Inkvoice data on disconnect and on startup**, so it can never come back with
+  stale data and clobber the phone. "If it's not on the phone, it didn't exist."
+- **`store.wipeLocalData()`** — silent (direct `removeItem`, emits NO sync op) clear of
+  invoices/profile/clients/card; KEEPS pairing keys for seamless reconnect. Must never run on
+  the phone.
+- **`syncui.js guestForgetAll()`** = `if(role==='guest') wipeLocalData()`. Called on guest
+  startup (`mountGuestStart`), guest disconnect (`onState` closed/error while booted), and
+  `forgetPhone`. The phone role never calls it.
+- **Safety:** a phone can NEVER reach the guest code path — `app.js` gating sends an installed
+  phone to `role:'phone'` and a phone-in-browser to the Landing page; only a non-phone hits
+  `role:'guest'`. So the wipe can only touch the laptop.
+- **Verified (scratchpad `terminal.mjs`):** laptop (no `?app`, desktop) wipes
+  invoices/profile/clients/card on startup but KEEPS its pairing key; the phone (`?app`) keeps
+  ALL its data; `wipeLocalData` emits 0 sync ops (can't propagate a delete to the phone). Full
+  regression + immutability + numbering + ordering + pdf-flow suites all green; bundle boots 0
+  pageerrors. **SW → v57 / APP_VERSION v57.** Bundle:
+  `_upload/inkvoice-app-COMPLETE-v57.zip` (+.htaccess). Icons + `?v=54` UNCHANGED. See memory
+  `sync-model`.
+
+### 2026-07-12 — v56: invoice/quotation IMMUTABILITY hardened (frozen forever)
+User report: a saved N1 (5 items) showed different info after an app update. Requirement: a
+document, once created, must NEVER change — not on profile changes (name/currency/address/
+tax numbers) nor app updates. Matches Android (snapshots everything into the saved invoice;
+its PDF generator reads only the saved invoice).
+- **Investigation:** `pdf.js` has NEVER read the live profile (only its `inv` argument),
+  `generate()` has snapshotted the business fields since commit 1, and `compute()` never
+  changed — so the PDF path was already immutable vs the profile. The real historical cause:
+  **before v55, editing an invoice OVERWROTE it and re-snapshotted the CURRENT profile**, so
+  editing/regenerating an old invoice after a rebrand stamped it with new data. v55 already
+  made editing create a NEW document; v56 hardens the rest.
+- **Frozen totals.** `pdf.js` used to RECOMPUTE amounts from items at render (`compute()`),
+  so a future formula change would alter old invoices. New `frozenTotals(inv)` renders the
+  STORED totals; `generate()` now snapshots the full breakdown (subtotal, discountAmount,
+  taxBasis, taxAmount, grandTotal, dueAmount). Legacy docs without them fall back to compute.
+- **List currency leak fixed.** `list.js card()` showed each doc's total in the LIVE profile
+  currency (`p.currency`); now uses `inv.currency` (the frozen one). Real "changes when you
+  change your profile" bug.
+- **Snapshot deep-copied.** `generate()` deep-copies `taxNumbers` (items already mapped) so
+  no shared reference can mutate a saved doc later.
+- **Proof test (scratchpad `immutable.mjs`):** create an invoice, then DRASTICALLY change the
+  profile (rebrand + new currency + new tax numbers) → the saved invoice's fields, its totals,
+  and its **byte-identical PDF** (ignoring the jsPDF date/ID metadata) are all UNCHANGED; the
+  list shows € not the new ¥; editing spawns a new doc and leaves the original untouched.
+- **Note:** already-corrupted historical invoices can't be retroactively restored (the
+  original profile-at-creation is gone) — but from v56 on they are locked. B2G + advanced
+  sharing fields were already snapshotted (buyerReference, departmentArea, clientVatId, due
+  date) and are unaffected. UI regression + PDF-flow + ordering + numbering suites all green;
+  bundle boots 0 pageerrors. **SW → v56 / APP_VERSION v56.** Bundle:
+  `_upload/inkvoice-app-COMPLETE-v56.zip` (+.htaccess). Icons + `?v=54` UNCHANGED. See memory
+  `invoice-immutability`.
 
 ### 2026-07-12 — v55: numbering (edit=new doc), tax-number picker, date-field overlap
 Three fixes, all checked against the Android reference (`CreateInvoiceScreen.kt`).
