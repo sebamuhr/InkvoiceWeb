@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+
+# The installable app at /app is intentionally kept out of search via a
+# noindex meta tag on that page — so it is deliberately NOT disallowed here
+# (Google must be able to crawl it to see and honour the noindex).
+
+Sitemap: https://inkvoiceapp.com/sitemap.xml

@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 
-  <!-- PRE-LAUNCH: hidden from search until the app is ready. REMOVE this one line to go live. -->
-  <meta name="robots" content="noindex, nofollow">
+  <!-- LIVE: indexable. (The app page at /app stays noindex — that's intentional.) -->
+  <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
 
   <title>Inkvoice — Free invoice app for your phone, in any language</title>
   <meta name="description" content="Create professional invoices, quotes & business cards on your phone — free, offline, no sign-up. Work in your language and bill each client in theirs. B2G e-invoicing (XRechnung, Factur-X, ZUGFeRD) on Android.">
@@ -16,11 +16,69 @@
   <!-- ============================================================= -->
   <link rel="canonical" href="https://inkvoiceapp.com/">
   <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Inkvoice">
+  <meta property="og:locale" content="en">
   <meta property="og:title" content="Inkvoice — invoices & quotes on your phone, in your client's language">
   <meta property="og:description" content="Free, offline, no sign-up. Branded invoices & quotes, bill each client in their own language, and B2G e-invoicing (XRechnung, Factur-X, ZUGFeRD) on Android.">
   <meta property="og:url" content="https://inkvoiceapp.com/">
   <meta property="og:image" content="https://inkvoiceapp.com/icons/icon-512.png">
+  <meta property="og:image:width" content="512">
+  <meta property="og:image:height" content="512">
+  <meta property="og:image:alt" content="Inkvoice app icon">
   <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Inkvoice — invoices & quotes on your phone, in your client's language">
+  <meta name="twitter:description" content="Free, offline, no sign-up. Branded invoices & quotes, bill each client in their language, plus B2G e-invoicing (XRechnung, Factur-X, ZUGFeRD) on Android.">
+  <meta name="twitter:image" content="https://inkvoiceapp.com/icons/icon-512.png">
+
+  <!-- Structured data: app + site + FAQ (drives rich results in Google) -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebSite",
+        "@id": "https://inkvoiceapp.com/#website",
+        "url": "https://inkvoiceapp.com/",
+        "name": "Inkvoice",
+        "description": "Free invoice, quote & business-card app for your phone — offline, no sign-up, multi-language, with B2G e-invoicing on Android.",
+        "inLanguage": "en"
+      },
+      {
+        "@type": "SoftwareApplication",
+        "@id": "https://inkvoiceapp.com/#app",
+        "name": "Inkvoice",
+        "operatingSystem": "Android, iOS, Web",
+        "applicationCategory": "BusinessApplication",
+        "url": "https://inkvoiceapp.com/",
+        "downloadUrl": "https://play.google.com/store/apps/details?id=com.elorate.invoicefree",
+        "description": "Create professional invoices, quotations and digital business cards on your phone. Works fully offline, no account needed. Set the invoice language independently from the app (English, German, Spanish, French) and generate EN 16931 e-invoices (XRechnung, Factur-X, ZUGFeRD) for B2G billing on Android.",
+        "featureList": [
+          "Invoices & quotations with sequential numbering",
+          "Professional PDF layouts",
+          "Digital business cards",
+          "Fully offline, on-device data",
+          "Bill in English, German, Spanish or French",
+          "B2G e-invoicing: XRechnung, Factur-X, ZUGFeRD (EN 16931)"
+        ],
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+      },
+      {
+        "@type": "FAQPage",
+        "@id": "https://inkvoiceapp.com/#faq",
+        "mainEntity": [
+          { "@type": "Question", "name": "Is Inkvoice free?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. Inkvoice is free to use. Both the Android version and the PWA for iPhone are ad-supported to keep it that way — only a few small ads." } },
+          { "@type": "Question", "name": "Do I need an account?", "acceptedAnswer": { "@type": "Answer", "text": "No sign-up, no login. Open the app and start invoicing immediately." } },
+          { "@type": "Question", "name": "Where is my data stored?", "acceptedAnswer": { "@type": "Answer", "text": "Entirely on your device. Inkvoice works fully offline and never uploads your invoices or clients to a server." } },
+          { "@type": "Question", "name": "I seem to have two versions with different invoices — is the app broken?", "acceptedAnswer": { "@type": "Answer", "text": "It isn't broken — you most likely installed it twice. Because your data lives on your device, each install keeps its own separate set of invoices and profile. Installing the app a second time, or opening it in a different browser (for example Chrome and Firefox), creates a fresh, independent copy that won't share data with the other. Pick one install and use only that one; before removing the extra copy, export a backup from its Profile screen and restore it into the copy you're keeping." } },
+          { "@type": "Question", "name": "Is there an iPhone app?", "acceptedAnswer": { "@type": "Answer", "text": "Inkvoice runs on iPhone as an installable web app — add it to your Home Screen from Safari and it behaves just like a native app, offline included." } },
+          { "@type": "Question", "name": "Can I back up my invoices?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. You can export a backup file from the Profile screen and restore it whenever you need." } },
+          { "@type": "Question", "name": "Can I send invoices in another language?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. Inkvoice lets you set the invoice language separately from the app's language, so you can work in your own language and bill each client in theirs — English, German, Spanish or French." } },
+          { "@type": "Question", "name": "Does Inkvoice support e-invoicing — XRechnung, Factur-X, ZUGFeRD?", "acceptedAnswer": { "@type": "Answer", "text": "The Android app creates EN 16931 e-invoices in the Factur-X / ZUGFeRD format, with the buyer reference and VAT fields needed for European business-to-government (B2G) invoicing." } }
+        ]
+      }
+    ]
+  }
+  </script>
 
   <meta name="theme-color" content="#2e3d6b">
   <link rel="icon" href="icons/icon-192.png">
