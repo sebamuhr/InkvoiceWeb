@@ -499,6 +499,22 @@ chevron clears content.
 
 ## 9. Changelog (newest first)
 
+### 2026-07-26 — 🚀 LAUNCH: marketing page live & indexed by Google
+The `inkvoiceapp.com` marketing page is no longer hidden. Deployed and confirmed live.
+- **`site/index.html`** — robots meta flipped `noindex,nofollow` → `index, follow,
+  max-image-preview:large, …`. The app shell (`index.html` → `/app`) KEEPS `noindex` (intentional).
+- **SEO pass**: full Open Graph + Twitter cards; **JSON-LD `@graph`** = `WebSite` +
+  `SoftwareApplication` + `FAQPage` (all 8 on-page FAQs mirrored — keep in sync with the visible FAQ).
+- **`site/robots.txt`** (Allow all + Sitemap ref) and **`site/sitemap.xml`** added; both live at the
+  domain root. `/app` deliberately NOT Disallowed so Google can crawl it and honour its noindex.
+- **Google Search Console**: Domain property `inkvoiceapp.com` (DNS-verified), sitemap submitted →
+  **Success**, homepage **URL is on Google / Page is indexed**. Verified from CLI that the live
+  sitemap/robots return 200 (incl. to the Googlebot UA). Bing Webmaster Tools = optional TODO.
+- Also live from earlier this session (site): double-install FAQ, auto-advancing feature slideshow
+  with arrows, footer contact email `inkvoice.app@gmail.com`.
+- No app-version bump (marketing-site-only change); latest app build stays **v68**.
+
+
 ### 2026-07-25 — v68: EN 16931 / XRechnung e-invoice XML on the web
 The web app now generates the e-invoice XML, matching the Android app (which passes the XRechnung
 online validator). Previously the web app only printed the B2G fields into the PDF — it produced no

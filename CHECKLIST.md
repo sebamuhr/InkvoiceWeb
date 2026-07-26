@@ -11,8 +11,9 @@
   `public_html/app/`). Marketing/welcome page at **inkvoiceapp.com** (`site/` → `public_html/`).
   The `app.inkvoiceapp.com` subdomain is being retired.
 - **Laptop sync is SHELVED** (removed from the UI; code kept in repo). App is offline, on-device only.
-- **Site is HIDDEN from Google** via `<meta name="robots" content="noindex,nofollow">` on BOTH the
-  app and the marketing page. **This is intentional — do NOT remove until launch.**
+- **🚀 LAUNCHED (2026-07-26): the marketing page is LIVE & indexed by Google** (`index,follow` +
+  JSON-LD + robots.txt + sitemap.xml; GSC Domain property verified, sitemap Success, page indexed).
+  The **app page `/app` KEEPS `noindex`** permanently — that's intentional, do not change it.
 - Latest built bundle: **`_upload/inkvoice-app-COMPLETE-v68.zip`** (app) and
   **`_upload/inkvoice-welcome-site.zip`** (marketing). Both are built but may not be deployed yet.
 
@@ -57,13 +58,15 @@
 - [ ] Wife's stuck test data (if any): re-save Profile (shrinks the logo) + delete old test invoices,
       or clear app data — the v64 fix prevents it recurring.
 
-## 3. LAUNCH GATE (only when the app is truly ready)
+## 3. LAUNCH GATE — ✅ DONE (2026-07-26)
 
-- [ ] Finish languages everywhere + any remaining features/fixes.
-- [ ] Make sure the SEO copy matches reality (invoice-language + e-invoicing now true on web/Android).
-- [ ] **Remove the ONE `<meta name="robots" ... noindex>` line from `site/index.html`** to go live.
-      (The app page `/app` can keep noindex permanently.)
-- [ ] Optionally add a sitemap + submit to Google Search Console.
+- [x] SEO copy matches reality (invoice-language + e-invoicing now true on web/Android).
+- [x] **Removed the noindex from `site/index.html`** → marketing page is live/indexable.
+      (The app page `/app` keeps noindex permanently.)
+- [x] Added `sitemap.xml` + `robots.txt`; submitted sitemap to Google Search Console → **Success**;
+      homepage **indexed**.
+- [ ] Optional TODO: Bing Webmaster Tools (imports from GSC); a content/blog section for high-intent
+      keywords (e.g. "XRechnung kostenlos erstellen").
 
 ---
 
