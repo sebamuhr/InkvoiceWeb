@@ -1,7 +1,8 @@
 // ===== Inkvoice — app shell, router, bottom tab bar =====
 import { Icon } from './icons.js';
-import { getProfile, requestPersistentStorage } from './store.js';
-import { t } from './i18n.js';
+import { getProfile, getInvoices, requestPersistentStorage } from './store.js';
+import { t, currentLang } from './i18n.js';
+import { APP_VERSION } from './sync.js';   // version constant only (laptop sync is shelved)
 import { toast, dialog } from './util.js';
 import * as Home from './views/dashboard.js';
 import * as Create from './views/create.js';
@@ -165,20 +166,10 @@ document.addEventListener('input', e => {
   }
 });
 
-if('serviceWorker' in navigator){
-  // When a new worker takes control, reload once so fresh code is used
-  // (prevents "blank page after update" from a stale worker).
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if(!window.__swReloaded){ window.__swReloaded = true; location.reload(); }
-  });
-  window.addEventListener('load', () => {
-    // updateViaCache:'none' → the browser never serves sw.js from its HTTP cache, so a
-    // new deploy's worker is detected on the very next load (not up to 10 min later).
-    navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' })
-      .then(reg => reg.update())
-      .catch(()=>{});
-  });
-}
+// NOTE: the service worker is registered by a plain inline script in index.html, NOT here.
+// app.js sits at the head of a static import graph, so if any module fails to load this file
+// never runs — and registering from here meant a single broken/missing file silently left the
+// app with no offline cache. See the comment in index.html.
 
 // Inkvoice is a phone/tablet app. All data lives only on the device (fully offline, no cloud,
 // no cross-device sharing). The full app runs when it's been INSTALLED to the home screen
@@ -188,19 +179,45 @@ const FORCE = new URLSearchParams(location.search).has('app');
 const STANDALONE = window.matchMedia('(display-mode: standalone)').matches
   || window.navigator.standalone === true;
 
-// Anonymous install counter: the FIRST time the app runs after being installed (standalone),
-// fire ONE tiny beacon to installed.txt, then remember we did (so it counts once per device,
-// not per open). Nothing personal is sent — the server just logs a hit. Count lines containing
-// "installed.txt" in the Hostinger access log = number of installs. `?app` previews (not
-// standalone) never count. Best-effort: offline installs simply log on the first online open.
-function pingInstallOnce(){
+// Anonymous usage counter (server side: ping.php → stats.php). Only the INSTALLED app counts
+// (`?app` previews never do). Sends, at most once a day per device:
+//   "install" — the first time this device is counted (prev=1 if the app was already in use
+//               before the counter existed, so old users aren't mistaken for new installs);
+//   "open"    — once per calendar day, giving daily/weekly/monthly active devices.
+// The payload is a RANDOM id generated here + platform, language and version. No IP is stored,
+// no invoice data is ever sent. Flags are only written after the server confirms, so a device
+// that is offline simply reports on its next online launch.
+const T_ID = 'inkvoice_device_id', T_LOGGED = 'inkvoice_install_logged', T_LAST = 'inkvoice_last_open';
+function trackUsage(){
   try{
     const REAL = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
-    if(!REAL || localStorage.getItem('inkvoice_install_pinged')) return;
-    localStorage.setItem('inkvoice_install_pinged','1');
-    fetch('installed.txt?ts=' + Date.now(), { cache:'no-store', keepalive:true }).catch(()=>{});
+    if(!REAL || !navigator.onLine) return;
+    const d = new Date();
+    const today = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+    const logged = !!localStorage.getItem(T_LOGGED);
+    if(logged && localStorage.getItem(T_LAST) === today) return;   // already counted today
+    let id = localStorage.getItem(T_ID);
+    if(!id){
+      id = (crypto.randomUUID && crypto.randomUUID()) ||
+        '10000000-1000-4000-8000-100000000000'.replace(/[018]/g, c =>
+          (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16));
+      localStorage.setItem(T_ID, id);
+    }
+    const ua = navigator.userAgent;
+    const os = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1) ? 'ios'
+      : /Android/.test(ua) ? 'android' : 'other';
+    // Already in use before the counter: the old one-time ping flag, or any saved document.
+    const prev = !logged && (localStorage.getItem('inkvoice_install_pinged') || getInvoices().length > 0) ? 1 : 0;
+    const body = JSON.stringify({ ev: logged ? 'open' : 'install', id, os, prev,
+      lang: currentLang(), v: APP_VERSION });
+    fetch('ping.php', { method:'POST', body, headers:{ 'Content-Type':'text/plain' }, keepalive:true, cache:'no-store' })
+      .then(r => { if(r.ok){ localStorage.setItem(T_LOGGED, '1'); localStorage.setItem(T_LAST, today); } })
+      .catch(()=>{});
   }catch{}
 }
+// An installed app can stay open in the background for days — count it again when it comes
+// back to the foreground on a new day.
+document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible') trackUsage(); });
 
 const appEl = document.getElementById('app');
 if(FORCE || STANDALONE){
@@ -209,7 +226,7 @@ if(FORCE || STANDALONE){
   // (standalone) rather than screen size so tablets work too. Ask the browser to keep our
   // storage persistent so the invoices aren't auto-evicted.
   requestPersistentStorage();
-  pingInstallOnce();
+  trackUsage();
   startApp();
 } else {
   // Opened in a normal browser tab (not installed) → the install / welcome page, which tells

@@ -9,7 +9,7 @@
 
 ## 🔴 ACTIVE ISSUE — PWA home-screen icon on Android (READ THIS FIRST)
 
-**Latest build: v68** (`_upload/inkvoice-app-COMPLETE-v68.zip`, INCLUDES `.htaccess`) — **e-invoicing
+**Latest build: v72** (usage counter ping.php/stats.php) on top of **v71** (ads: slot visible again — v69 hidden-slot regression). Prior: **v68** (`_upload/inkvoice-app-COMPLETE-v68.zip`, INCLUDES `.htaccess`) — **e-invoicing
 XML on the WEB** (`js/einvoice.js`): a faithful port of the Android `ZugferdGenerator.kt` (EN 16931 /
 XRechnung CII — the exact generator that passes the online validator). Reachable via Profile →
 Advanced Sharing → "Share XML" / "Both PDF & XML". XRechnung-valid for **B2G** invoices. See v68
@@ -498,6 +498,112 @@ chevron clears content.
 ---
 
 ## 9. Changelog (newest first)
+
+### 2026-10-16 — v72: real usage counter — ping.php + stats.php
+- (Built 10-12 as a second "v71"; the user had already uploaded the first v71 on 10-11, so the
+  PHP never went live → stats.php 404. Renumbered to v72: same VERSION = phones never update.)
+- Replaces the one-shot `installed.txt` hit (needed log digging; Hostinger keeps few days).
+- `js/app.js` `trackUsage()` (installed/standalone only): POSTs `ping.php` → "install" once per
+  device (`prev=1` if the device already had documents / the old `inkvoice_install_pinged`
+  flag, so pre-existing users aren't counted as new), then "open" max once per calendar day
+  (also on returning to foreground). Random UUID device id; flags written only on server OK.
+- `ping.php`: strict whitelist validation, appends JSON lines to monthly
+  `events-YYYY-MM.jsonl` in `domains/inkvoiceapp.com/inkvoice-stats/` (OUTSIDE public_html,
+  survives redeploys), fallback `app/stats-data/` (web-denied). No IP, no UA.
+- `stats.php?k=<key>`: totals, active today/7d/30d, by month, platform, language, version,
+  by day + CSV. Key lives in `stats-config.php` — **gitignored, shipped only in the bundle**.
+  Wrong/missing key → 404. `sw.js` never intercepts `*.php`.
+- Tested with PHP 8.3 (Docker) + browser emulating an installed iPhone: existing user →
+  install prev=1; new → prev=0; reload → no extra ping; Safari tab → none; junk → 400.
+
+### 2026-10-11 — v71: REAL cause of "no ads anywhere" — the hidden slot (v69 regression)
+- User: no ads, not even the slot, on iPhone on ALDI TALK (O2 network, NOT Telekom) with v70.
+- check-host.net: `highperformanceformat.com` answers 200 from 8 countries. Fetched the live
+  `invoke.js` via archive.org (54 KB obfuscated): it now pulls the ad from a SECOND domain
+  (`kettledroopingcontinuation.com/watch.*`, plus `protrafficinspector.com/stats`) — also
+  blocked by Telekom. The watch page records frame/window sizes (`innerWidth`, `fr`, sw1..sw7).
+- **Root cause:** v69 made the slot `display:none` until it filled. Measured: inside a hidden
+  slot the ad script sees `innerWidth/innerHeight/offsetHeight = 0×0`. Adsterra does not serve
+  to an invisible 0×0 frame → the fill never comes → slot removed. Ads last worked (Aug 1) when
+  the slot was visible. v70's longer timeout could not help.
+- **Fix (`js/ads.js`):** slot VISIBLE at real size from the start (like ≤v68); removed only on
+  script `onerror` or no fill after 20s. Debug mode can now be toggled INSIDE the installed app:
+  tap "Inkvoice v71" in Profile 5× (iPhone PWA storage is separate from Safari, so `?addebug` in
+  Safari shows an empty list). Debug adds a test slot at the top of the list.
+- Verified e2e (7 seeded invoices): slot after N°006 visible at t=0.8s; filled → stays; blocked
+  → gone at once; no fill → gone at 22s; 5-tap toggle works; 0 page errors. Bundle boot-tested.
+- **Deploy incident:** the v70 zip was first extracted into `public_html/` (root) → overwrote the
+  marketing page. Restored with a rebuilt `inkvoice-welcome-site.zip` that now also contains
+  `site/sw.js` = KILL SWITCH (unregisters the app worker that got registered at scope "/").
+  Keep that file. Stray app files (js/, vendor/, pdfsamples/, manifest.json, installed.txt) may
+  still sit in public_html/ root — harmless, delete when convenient.
+- `app.inkvoiceapp.com` serves the SAME folder as `inkvoiceapp.com/app` (both went v69→v70 together).
+- **SW VERSION → v71 / APP_VERSION → v71.** Bundle: `_upload/inkvoice-app-COMPLETE-v71.zip`.
+
+### 2026-10-11 — v70: ads no longer thrown away on slow mobile data + ad diagnostic mode
+- **Bug:** user reported NO ads on iPhone even on 3G (not just Telekom wifi). v69's collapse logic
+  removed the slot after ~4s; on 3G the Adsterra script + ad request often takes longer, so real ads
+  were discarded. Ads were last confirmed on iPhone cellular on 2026-08-01 — BEFORE v69 shipped.
+- `js/ads.js`: wait up to **20s** for a fill (slot stays hidden meanwhile); collapse immediately on
+  script `onerror` (blocked host). Fill check now looks for any visual element in the srcdoc.
+- **Diagnostic mode:** open `inkvoiceapp.com/app/?app&addebug` → slots never hide, label shows
+  `script: loaded|error|pending · filled · seconds · online`. Sticky via localStorage
+  `inkvoice.adDebug`; `?app&addebug=0` turns it off.
+- `js/app.js` install counter: the "pinged" flag is now set only after `installed.txt` returns OK
+  (before, an install first opened offline was never counted).
+- Verified in headless Chromium with mocked invoke.js: fast → shown; 8s slow → shown at 8.5s (v69
+  would have removed it); blocked → removed at once; debug labels correct.
+- **SW VERSION → v70 / APP_VERSION → v70.** Bundle: `_upload/inkvoice-app-COMPLETE-v70.zip`
+  (same file set as v69; only ads.js, app.js, sync.js, sw.js differ).
+
+### 2026-08-01 — v69: PWA opens offline (iPhone blank-screen fix) + ads collapse when blocked
+
+**1. Ads "not showing" = Deutsche Telekom blocks the ad host.** Not a code/key/Adsterra problem.
+Measured from the dev's Telekom line: `http://www.highperformanceformat.com/…` → `302
+https://block.telekom.net/de/warn.html`, and HTTPS fails the TLS handshake ("wrong version number")
+on **all 14** of its IPs. Scoped to that one host — `adsterra.com`, `pagead2.googlesyndication.com`,
+`example.com` all fine. Confirmed by the user: iPhone AND Android both show ads on mobile data and
+neither on the Telekom wifi — same wifi is the only shared factor. The live key is correct
+(`c7ac468f…`, site 5920358, unit 30311824) and `/app/js/ads.js` serves `enabled:true`. **Decision:
+do not engineer around it** — ask the Adsterra manager for an alternative serving domain, otherwise
+ignore (one ISP, one country, cents of CPM). See memory `adsterra-telekom-block`.
+
+**2. `ads.js` now COLLAPSES an unfilled slot.** Before, the label was written up-front so a blocked
+ad left a bordered empty "ADVERTISEMENT" box — which is what the user actually reported seeing. The
+slot now starts `display:none` and is revealed only on a real fill; polled every 500ms × 8 (~4s),
+then `container.remove()`. The srcdoc doc is same-origin so we can inspect it — but **must ignore
+our own two `<script>` children**, otherwise every slot looks filled (first attempt failed exactly
+this way). Verified both directions: blocked (real, on the Telekom line) → slot removed, 7 cards
+intact; stubbed fill → slot visible with label.
+
+**3. THE REAL ONE — installed iPhone PWA opened BLANK with no connection.** ROOT CAUSE: `sw.js` was
+**network-first for everything**, including `index.html` — every launch waited on a network
+round-trip before painting. Desktop Chrome survives this (a failed fetch rejects instantly → cache
+fallback; a live offline test of production passed, 33 entries cached, app booted). iOS does not:
+WebKit terminates idle service workers aggressively, so a cold home-screen launch had to boot the
+worker AND let its fetch fail before anything rendered. Fix: **rewrote `sw.js` cache-first**
+(app-shell + stale-while-revalidate) — navigations are served from the cached `index.html` without
+touching the network, shell assets cache-first with a background refresh, everything else
+network-first with cache fallback. Added an 8s `NET_TIMEOUT` so a dead-but-connected network
+(captive portal, weak signal) can't leave a fetch hanging. Freshness after deploy still comes from
+bumping `VERSION` → new worker precaches → skipWaiting/claim → `controllerchange` reload.
+
+**4. Two robustness bugs found while verifying (both real, both silent):**
+- `cache.addAll()` is **atomic** — one 404 in SHELL rejected the whole install, the worker never
+  activated and the app had NO offline support at all, with no error anywhere. Now precaches
+  per-file via `Promise.allSettled`.
+- **`serviceWorker.register()` lived in `js/app.js`**, the head of a static import graph. Proved by
+  test: with one module 404ing, `SW: NONE` — app.js never executed, so the app never registered a
+  worker and cached **0** files. Moved registration into a plain inline `<script>` in `index.html`
+  (no modules, always runs). Same test now: SW active, **31/32** cached. This is the
+  `deploy-complete-bundle` failure mode made survivable.
+
+**Verified** (Playwright, against the built bundle — not just the repo): (A) offline cold launch →
+32/32 cached, tabbar renders, 0 errors; (B) offline with the worker force-stopped → app boots;
+(C) 404 in shell → 31/32 cached, worker still active; (D) first-ever visit offline → browser offline
+page, **unavoidable** (no worker exists yet — every PWA needs one successful online load).
+**SW VERSION → v69 / APP_VERSION → v69.** Bundle: `_upload/inkvoice-app-COMPLETE-v69.zip`
+(+.htaccess, 48 files, file set identical to v68). Icons + `?v=65` UNCHANGED.
 
 ### 2026-07-26 — 🚀 LAUNCH: marketing page live & indexed by Google
 The `inkvoiceapp.com` marketing page is no longer hidden. Deployed and confirmed live.

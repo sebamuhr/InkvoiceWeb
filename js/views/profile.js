@@ -3,6 +3,7 @@ import { APP_VERSION } from '../sync.js';   // version constant only (laptop syn
 import { t } from '../i18n.js';
 import { esc, toast, isEmail, isWebsite } from '../util.js';
 import { Icon } from '../icons.js';
+import { adDebugOn, toggleAdDebug } from '../ads.js';
 import { mfield, mselect } from '../ui.js';
 
 let logoData = '';
@@ -65,7 +66,7 @@ export function html(){
     <button class="btn ghost block" id="restore" style="margin-top:10px">${t('Restore from a backup file')}</button>
     <input type="file" id="restore-input" accept="application/json,.json" class="hidden">
     <div class="links"><button class="linkbtn">${t('Privacy Policy')}</button><button class="linkbtn">${t('Contact Us')}</button></div>
-    <div class="section-sub" style="margin:14px 2px 0;opacity:.45;font-size:12px;text-align:center">Inkvoice ${APP_VERSION}</div>
+    <div class="section-sub" id="app-version" style="margin:14px 2px 0;opacity:.45;font-size:12px;text-align:center">Inkvoice ${APP_VERSION}${adDebugOn()?' · ad debug':''}</div>
   </div>`;
 }
 
@@ -113,6 +114,16 @@ function taxRows(){
 
 export function mount(){
   const $ = id => document.getElementById(id);
+  // Hidden switch: tap the version line 5× to toggle the ad diagnostic mode (see ads.js).
+  let taps = 0, tapTimer;
+  $('app-version').addEventListener('click', () => {
+    clearTimeout(tapTimer); tapTimer = setTimeout(() => { taps = 0; }, 1500);
+    if(++taps < 5) return;
+    taps = 0;
+    const on = toggleAdDebug();
+    $('app-version').textContent = `Inkvoice ${APP_VERSION}${on ? ' · ad debug' : ''}`;
+    toast(on ? 'Ad diagnostics ON' : 'Ad diagnostics OFF');
+  });
   const input = $('logo-input');
   $('logo-circle').addEventListener('click', () => input.click());
   input.addEventListener('change', e => {

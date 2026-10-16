@@ -27,6 +27,27 @@
 </head>
 <body>
   <div id="app"></div>
+  <!-- Service worker registration lives HERE, not in app.js, and deliberately uses no
+       modules/imports. app.js is the head of a static import graph: if any one module fails
+       to load (a partial upload, a typo'd filename) app.js never executes, and when the
+       register() call lived inside it the app silently ended up with NO offline cache at all.
+       Registered as classic inline JS, it always runs — so the app can still cache itself and
+       open offline even if some other file is broken. -->
+  <script>
+    if('serviceWorker' in navigator){
+      // Reload once when a new worker takes control, so a deploy never leaves stale code running.
+      navigator.serviceWorker.addEventListener('controllerchange', function(){
+        if(!window.__swReloaded){ window.__swReloaded = true; location.reload(); }
+      });
+      window.addEventListener('load', function(){
+        // updateViaCache:'none' → the browser never serves sw.js from its HTTP cache, so a
+        // new deploy's worker is detected on the very next load (not up to 7 days later).
+        navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' })
+          .then(function(reg){ return reg.update(); })
+          .catch(function(){});
+      });
+    }
+  </script>
   <script type="module" src="js/app.js"></script>
 </body>
 </html>

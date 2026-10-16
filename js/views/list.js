@@ -3,7 +3,7 @@ import { openInvoicePdf } from '../pdf.js';
 import { openInvoiceXml } from '../einvoice.js';
 import { money, money2, fmtISO, esc, toast, dialog } from '../util.js';
 import { Icon } from '../icons.js';
-import { mountAdSlot } from '../ads.js';
+import { mountAdSlot, adDebugOn } from '../ads.js';
 import { t } from '../i18n.js';
 
 let filterStatus = 'All';
@@ -87,6 +87,8 @@ function cardsWithAds(docs){
   // so an ad stays put between the same document pair (#5/#6, #10/#11…) as new
   // documents are added on top — matches the Android app (InvoiceListScreen.kt).
   let out = '', ad = 0;
+  // Diagnostic mode: one test slot at the top so ads can be checked with any list size.
+  if(adDebugOn()) out += `<div class="ad-slot" id="ad-slot-${ad++}"></div>`;
   docs.forEach((inv, i) => {
     out += card(inv);
     const below = docs.length - 1 - i;

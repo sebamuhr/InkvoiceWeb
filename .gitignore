@@ -5,3 +5,6 @@ node_modules/
 # Hostinger deploy artifacts (staging folder + zips) — not part of the source
 _upload/
 *.zip
+
+# Private key for stats.php (shipped in the Hostinger bundle only)
+stats-config.php
