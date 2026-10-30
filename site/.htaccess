@@ -1,0 +1,6 @@
+# inkvoiceapp.com root (public_html/). Private stats page: inkvoiceapp.com/stats is served by
+# the app's stats.php (public_html/app/stats.php), which asks for the password.
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteRule ^stats$ app/stats.php [L,QSA]
+</IfModule>

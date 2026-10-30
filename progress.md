@@ -499,6 +499,18 @@ chevron clears content.
 
 ## 9. Changelog (newest first)
 
+### 2026-10-30 — v73: clean stats URL — inkvoiceapp.com/stats
+- NEW `site/.htaccess` (→ `public_html/.htaccess`, now in `inkvoice-welcome-site.zip`) rewrites
+  `/stats` → `app/stats.php`. App `.htaccess` 301s `/app/stats` → `/stats`.
+- No key in the URL any more: first visit shows a password form; the right key sets an HttpOnly
+  cookie (HMAC of the key, 1 year, path /) and 303-redirects to `/stats`. Old
+  `app/stats.php?k=…` link still works (logs in + redirects). CSV link: `/stats?csv=1`.
+  `sw.js` also bypasses `/app/stats` (else the SPA shell would swallow the redirect).
+- DEPLOY: upload BOTH zips (app v73 → public_html/app/, welcome-site → public_html/). If
+  public_html/ already has a .htaccess, merge the rewrite lines instead of overwriting it.
+- Tested in Docker php:8.3-apache with the real root+app layout: form 200, wrong pw 403, login →
+  cookie → stats, CSV, /app/stats 301, legacy link, site + app + manifest still 200.
+
 ### 2026-10-16 — v72: real usage counter — ping.php + stats.php
 - (Built 10-12 as a second "v71"; the user had already uploaded the first v71 on 10-11, so the
   PHP never went live → stats.php 404. Renumbered to v72: same VERSION = phones never update.)

@@ -1,13 +1,42 @@
 <?php
 /**
- * Inkvoice — private usage stats. Open: stats.php?k=<STATS_KEY from stats-config.php>
- * Reads the anonymous events written by ping.php. Add &csv=1 for a per-day CSV download.
+ * Inkvoice — private usage stats. Open: inkvoiceapp.com/stats (root .htaccess in site/ rewrites it here;
+ * /app/stats redirects to it).
+ * First visit asks for STATS_KEY (stats-config.php); a cookie then remembers this browser.
+ * The old app/stats.php?k=<key> link still works (logs in, then redirects to /stats).
+ * Reads the anonymous events written by ping.php. Add ?csv=1 for a per-day CSV download.
  */
 require __DIR__ . '/stats-lib.php';
 $cfg = __DIR__ . '/stats-config.php';
 if (!file_exists($cfg)) { http_response_code(404); exit; }
 require $cfg;
-if (!defined('STATS_KEY') || !hash_equals(STATS_KEY, (string)($_GET['k'] ?? ''))) { http_response_code(404); exit; }
+if (!defined('STATS_KEY')) { http_response_code(404); exit; }
+
+// ---- Login: the cookie holds an HMAC of the key, never the key itself. ----
+$token = hash_hmac('sha256', 'inkvoice-stats', STATS_KEY);
+$given = (string)($_POST['k'] ?? $_GET['k'] ?? '');
+if ($given !== '' && hash_equals(STATS_KEY, $given)) {
+  setcookie('ivstats', $token, ['expires' => time() + 31536000, 'path' => '/',
+    'secure' => !empty($_SERVER['HTTPS']), 'httponly' => true, 'samesite' => 'Strict']);
+  header('Location: /stats', true, 303); exit;
+}
+if (!hash_equals($token, (string)($_COOKIE['ivstats'] ?? ''))) {
+  if ($given !== '') http_response_code(403);
+  header('Cache-Control: no-store');
+  header('X-Robots-Tag: noindex, nofollow'); ?>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow"><title>Inkvoice stats</title>
+<style>:root{--bg:#f6f7fb;--card:#fff;--ink:#1d2433;--muted:#6b7385;--line:#e4e7ef;--accent:#069a8b}
+@media (prefers-color-scheme: dark){:root{--bg:#12151c;--card:#1b1f29;--ink:#e8ebf2;--muted:#98a0b3;--line:#2b3140;--accent:#2cc2b1}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,sans-serif}
+form{max-width:340px;margin:18vh auto 0;padding:20px 16px;background:var(--card);border:1px solid var(--line);border-radius:12px}
+h1{font-size:18px;margin:0 0 12px}input,button{width:100%;font:inherit;padding:10px 12px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+button{margin-top:10px;background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600;cursor:pointer}.err{color:#d33;font-size:13px;margin:8px 0 0}</style></head>
+<body><form method="post" action="/stats"><h1>Inkvoice stats</h1>
+<input type="password" name="k" placeholder="Password" autocomplete="current-password" autofocus required>
+<?php if ($given !== ''): ?><p class="err">Wrong password.</p><?php endif; ?>
+<button>Open</button></form></body></html>
+<?php exit; }
 
 header('Cache-Control: no-store');
 header('X-Robots-Tag: noindex, nofollow');
@@ -94,7 +123,6 @@ foreach ($activeByDay as $d => $set) { $m = substr($d, 0, 7); $months[$m][2] = (
 krsort($months);
 
 $h = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
-$k = $h($_GET['k']);
 $osName = ['ios' => 'iPhone / iPad', 'android' => 'Android', 'other' => 'Other'];
 ?><!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -146,7 +174,7 @@ a{color:var(--accent)}.note{color:var(--muted);font-size:12.5px}
   </table></section>
 </div>
 
-<section style="margin-top:14px"><h2>By day <a href="?k=<?= $k ?>&amp;csv=1" style="font-weight:400;font-size:13px;margin-left:8px">Download CSV</a></h2><table>
+<section style="margin-top:14px"><h2>By day <a href="/stats?csv=1" style="font-weight:400;font-size:13px;margin-left:8px">Download CSV</a></h2><table>
 <tr><th>Date</th><th>New</th><th>Existing*</th><th>Active</th><th>Total</th></tr>
 <?php foreach (array_reverse($rows) as [$d, $n, $p, $a, $cum]): ?>
 <tr class="<?= ($n + $p + $a) ? '' : 'zero' ?>"><td><?= $h($d) ?></td><td><?= $n ?></td><td><?= $p ?></td><td><?= $a ?></td><td><?= $cum ?></td></tr>

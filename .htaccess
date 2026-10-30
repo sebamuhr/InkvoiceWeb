@@ -26,3 +26,10 @@
     Header set Cache-Control "public, max-age=31536000, immutable"
   </FilesMatch>
 </IfModule>
+
+# The private stats page lives at inkvoiceapp.com/stats (rewritten to app/stats.php by the
+# root .htaccess from site/). Send the old /app/stats address there.
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteRule ^stats$ /stats [R=301,L]
+</IfModule>

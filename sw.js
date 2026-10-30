@@ -15,7 +15,7 @@
    Freshness after a deploy is preserved by VERSION below: bump it, the new worker precaches
    everything fresh, skipWaiting()+claim() fire, and app.js's `controllerchange` handler
    reloads the page once onto the new code. ALWAYS bump VERSION when shipping. */
-const VERSION = 'v72';
+const VERSION = 'v73';
 const CACHE = 'inkvoice-' + VERSION;
 
 // How long a background/network request may hang before we give up. Without this a flaky
@@ -89,9 +89,9 @@ self.addEventListener('fetch', (e) => {
   // response and the launcher falls back to the generic Android icon (seen on real devices).
   // They are HTTP-cached immutable for a year (.htaccess), so the browser serves them offline
   // from its own cache anyway. See memory `pwa-icon-root-cause` — do not "fix" this.
-  // Server endpoints (usage counter ping.php, private stats.php) always go straight to the
+  // Server endpoints (usage counter ping.php, private stats.php = /stats) always go straight to the
   // network — never cached, never answered from cache.
-  if (url.pathname.endsWith('.php')) return;
+  if (url.pathname.endsWith('.php') || url.pathname.endsWith('/stats')) return;
   if (url.pathname.endsWith('/manifest.json') || url.pathname.endsWith('/favicon.ico') || url.pathname.includes('/icons/')) return;
 
   // ---- Page navigations: always the cached shell, instantly. ----
